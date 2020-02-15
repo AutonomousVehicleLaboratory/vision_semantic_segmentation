@@ -1,4 +1,4 @@
-Semantic Segmentation Node
+# Semantic Segmentation Node
 
 ## NODE INFO
 Input:
