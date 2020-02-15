@@ -1,0 +1,17 @@
+OUTPUT_DIR: "@"
+OUTPUT_NAME: "resnext50_os8"
+TRAIN_DATASET: "Mapillary"
+TRAIN_DATASET_DIR: "/home/qinru/avl/semantic/deeplab/data/mapillary-vistas-dataset_public_v1.1_processed"
+MODEL:
+  TYPE: "DeepLabv3+"
+  BACKBONE: "resnext50_32x4d"
+  SYNC_BN: True
+  OUTPUT_STRIDE: 8
+  WEIGHT: "/home/qinru/avl/semantic/deeplab/outputs/cluster_output/resnext50_os8/run1/model_best.pth"
+  DECODER:
+    LOW_LEVEL_OUT_CHANNELS: 256
+DATASET:
+  NAME: "AVL"
+  IN_CHANNELS: 3
+  NUM_CLASSES: 39
+  ROOT_DIR: "/home/qinru/avl/semantic/deeplab/data/avl_data/camera_left-003.avi"
