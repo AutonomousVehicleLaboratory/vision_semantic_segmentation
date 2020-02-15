@@ -1,7 +1,7 @@
 OUTPUT_DIR: "@"
 OUTPUT_NAME: "resnext50_os8"
 TRAIN_DATASET: "Mapillary"
-TRAIN_DATASET_DIR: "/home/qinru/avl/semantic/deeplab/data/mapillary-vistas-dataset_public_v1.1_processed"
+TRAIN_DATASET_DIR: "ignored"
 MODEL:
   TYPE: "DeepLabv3+"
   BACKBONE: "resnext50_32x4d"
@@ -14,4 +14,4 @@ DATASET:
   NAME: "AVL"
   IN_CHANNELS: 3
   NUM_CLASSES: 39
-  ROOT_DIR: "/home/qinru/avl/semantic/deeplab/data/avl_data/camera_left-003.avi"
+  ROOT_DIR: "ignored"

@@ -52,7 +52,7 @@ class SemanticSegmentation():
         """
         Generate the semantic segmentation from the input image
         Args:
-            image_in: numpy array (h, w, 3)
+            image_in: numpy array (h, w, 3) in RGB
 
         Returns:
             the semantic segmentation mask
