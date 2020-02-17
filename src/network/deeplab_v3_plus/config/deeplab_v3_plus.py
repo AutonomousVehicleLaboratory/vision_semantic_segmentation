@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from deeplab_v3_plus.config.base import CN, _C
 
 # Create public alias

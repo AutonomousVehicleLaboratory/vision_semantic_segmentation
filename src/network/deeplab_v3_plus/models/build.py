@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import torch.nn as nn
 
 from deeplab_v3_plus.models.deeplab_v3_plus import DeepLabV3Plus
@@ -29,7 +30,7 @@ def build_dummy_model(cfg):
     import torchvision.models as models
 
     net = nn.Sequential(
-        *list(models.resnet101(pretrained=True).children())[:-2],  # We don't want the average pool and fc
+        # *list(models.resnet101(pretrained=True).children())[:-2],  # We don't want the average pool and fc
         Conv2d(in_channels=2048, out_channels=2048, kernel_size=1, bn=True),
         nn.Upsample(size=(16, 16), mode='bilinear', align_corners=True),
         Conv2d(in_channels=2048, out_channels=1024, kernel_size=1, bn=True),

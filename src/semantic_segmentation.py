@@ -5,8 +5,9 @@ Date:February 14, 2020
 """
 
 # module
+from __future__ import absolute_import, division, print_function, unicode_literals # python2 compatibility
 import numpy as np
-import cv2
+# import cv2
 # parameters
 
 import os.path as osp
@@ -75,14 +76,19 @@ def main():
 
 if __name__ == "__main__":
     main()
-    network = SemanticSegmentation(config_file="/home/qinru/avl/semantic/deeplab/experiments/video_generation/avl.yaml")
+    network = SemanticSegmentation(config_file=
+    # "/home/qinru/avl/semantic/deeplab/experiments/video_generation/avl.yaml"
+    "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/src/network/experiments/video_generation/avl.yaml"
+    )
 
     import PIL.Image as Image
     import matplotlib.pyplot as plt
     import numpy as np
 
     image = Image.open(
-        "/home/qinru/avl/semantic/deeplab/data/mapillary-vistas-dataset_public_v1.1_processed/validation/images/0B5qssoIEl6LguVQjoRiDQ.jpg")
+        # "/home/qinru/avl/semantic/deeplab/data/mapillary-vistas-dataset_public_v1.1_processed/validation/images/0B5qssoIEl6LguVQjoRiDQ.jpg"
+        "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/high_res_images/1.jpg"
+        )
     image = np.array(image)
 
     segmentation = network.segmentation(image)
