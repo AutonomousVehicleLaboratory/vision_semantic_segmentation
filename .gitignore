@@ -1,5 +1,5 @@
 .idea
-
+.vscode
 *.pyc
 network_output_example
 high_res_images
