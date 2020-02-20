@@ -11,10 +11,10 @@ import sys
 
 import os.path as osp
 import rospy
+import numpy as np
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
-
 from semantic_segmentation import SemanticSegmentation # source code
 
 # parameters
@@ -44,6 +44,8 @@ class VisionSemanticSegmentationNode:
         image_out = self.seg.segmentation(image_in)
 
         try:
+            image_out = np.stack((image_out, image_out, image_out), axis=2)
+            image_out = image_out.astype(np.uint8)
             image_pub = self.bridge.cv2_to_imgmsg(image_out, encoding="passthrough")
         except CvBridgeError as e:
             print(e)
