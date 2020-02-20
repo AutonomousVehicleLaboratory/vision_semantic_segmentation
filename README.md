@@ -2,6 +2,8 @@
 
 ## Setup
 
+Assume that you are using the docker image `astuff_autoware_nvidia` 
+
 1. Add ros into your bash path `source /opt/ros/kinetic/setup.bash`
 2. Run `bash ./setup.sh` in the root directory
 
@@ -21,11 +23,11 @@ Notice: this input topic is not published by vehicle, it is from vision_darknet_
 
 ### Run the semantic segmentation network
 
-Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Publication-IROS2020`). 
+1. Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Publication-IROS2020`). 
 
-Open `config/avl.yaml` and set the `MODEL.WEIGHT` as the path to the trained weight. 
+2. Open `config/avl.yaml` and set the `MODEL.WEIGHT` as the path to the trained weight. 
 
-Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. Currently we are using `39`.
+3. Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
 
 ## TODO
 
@@ -33,3 +35,4 @@ Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. Currently we 
 - [x] SemanticSegmentation class
 - [ ] integration test with Autoware
 - [ ] record frequency and delay
+
