@@ -9,6 +9,7 @@ Date:February 14, 2020
 from __future__ import absolute_import, division, print_function, unicode_literals # python2 compatibility
 import sys
 
+import os.path as osp
 import rospy
 
 from cv_bridge import CvBridge, CvBridgeError
@@ -27,7 +28,8 @@ class VisionSemanticSegmentationNode:
         self.image_pub_cam6 = rospy.Publisher("/camera6/semantic",Image, queue_size=1)
 
         self.bridge = CvBridge()
-        self.seg = SemanticSegmentation()
+        # By default we are using the configuration config/avl.yaml
+        self.seg = SemanticSegmentation(config_file='../config/avl.yaml')
 
         self.image_sub_cam1 = rospy.Subscriber("/camera1/image_raw",Image,self.callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw",Image,self.callback)
