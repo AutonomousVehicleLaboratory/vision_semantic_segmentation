@@ -9,6 +9,7 @@ Date:February 14, 2020
 from __future__ import absolute_import, division, print_function, unicode_literals # python2 compatibility
 import sys
 
+import cv2
 import os.path as osp
 import rospy
 import numpy as np
@@ -41,7 +42,20 @@ class VisionSemanticSegmentationNode:
         except CvBridgeError as e:
             print(e)
 
-        image_out = self.seg.segmentation(image_in)
+        scale_percent = 25 # percent of original size
+        width = int(image_in.shape[1] * scale_percent / 100)
+        height = int(image_in.shape[0] * scale_percent / 100)
+        dim = (width, height)
+        # resize image
+        image_in_resized = cv2.resize(image_in, dim, interpolation = cv2.INTER_AREA)
+        
+        # print(image_in.shape, "-->", image_in_resized.shape)
+        image_out_resized = self.seg.segmentation(image_in_resized)
+        # print(image_out_resized.shape, "-->", image_in.shape)
+        
+        # NOTE: we use INTER_NEAREST because values are discrete labels
+        image_out = cv2.resize(image_out_resized, (image_in.shape[1], image_in.shape[0]) , interpolation = cv2.INTER_NEAREST)
+
 
         try:
             image_out = np.stack((image_out, image_out, image_out), axis=2)
