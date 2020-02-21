@@ -29,7 +29,7 @@ class VisionSemanticSegmentationNode:
 
         self.bridge = CvBridge()
         # By default we are using the configuration config/avl.yaml
-        self.seg = SemanticSegmentation(config_file='../config/avl.yaml')
+        self.seg = SemanticSegmentation(config_file=osp.dirname(__file__) + '/../config/avl.yaml')
 
         self.image_sub_cam1 = rospy.Subscriber("/camera1/image_raw",Image,self.callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw",Image,self.callback)
@@ -40,7 +40,7 @@ class VisionSemanticSegmentationNode:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
             print(e)
-    
+
         image_out = self.seg.segmentation(image_in)
 
         try:
@@ -50,7 +50,7 @@ class VisionSemanticSegmentationNode:
         except CvBridgeError as e:
             print(e)
 
-        print(msg.header.frame_id)
+        
         if msg.header.frame_id == "camera1":
             self.image_pub_cam1.publish(image_pub)
         elif msg.header.frame_id == "camera6":

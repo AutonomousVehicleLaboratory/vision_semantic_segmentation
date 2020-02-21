@@ -47,9 +47,6 @@ def connected_component(img, label):
 
     return pixExplored
 
-
-
-
 def generate_convex_hull(img, vis=False):
     rows, cols, _ = img.shape
 
