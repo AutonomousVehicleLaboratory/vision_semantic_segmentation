@@ -13,6 +13,7 @@ find_package(catkin REQUIRED
   sensor_msgs
   cv_bridge
   message_generation
+  shape_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -113,6 +114,7 @@ catkin_package(
     sensor_msgs
     message_runtime
     cv_bridge
+    shape_msgs
 #  DEPENDS system_lib
 )
 

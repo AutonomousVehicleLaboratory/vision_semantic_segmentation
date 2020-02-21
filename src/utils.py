@@ -10,7 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import pyplot as plt
 
 from plane_3d import Plane3D
-from point_cloud import PointCloud
+# from point_cloud import PointCloud
 
 # parameters
 
