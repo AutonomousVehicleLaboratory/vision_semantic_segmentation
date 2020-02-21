@@ -9,11 +9,12 @@ Date:February 14, 2020
 from __future__ import absolute_import, division, print_function, unicode_literals # python2 compatibility
 import sys
 
+import os.path as osp
 import rospy
+import numpy as np
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
-
 from semantic_segmentation import SemanticSegmentation # source code
 
 # parameters
@@ -27,7 +28,8 @@ class VisionSemanticSegmentationNode:
         self.image_pub_cam6 = rospy.Publisher("/camera6/semantic",Image, queue_size=1)
 
         self.bridge = CvBridge()
-        self.seg = SemanticSegmentation()
+        # By default we are using the configuration config/avl.yaml
+        self.seg = SemanticSegmentation(config_file='../config/avl.yaml')
 
         self.image_sub_cam1 = rospy.Subscriber("/camera1/image_raw",Image,self.callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw",Image,self.callback)
@@ -42,6 +44,8 @@ class VisionSemanticSegmentationNode:
         image_out = self.seg.segmentation(image_in)
 
         try:
+            image_out = np.stack((image_out, image_out, image_out), axis=2)
+            image_out = image_out.astype(np.uint8)
             image_pub = self.bridge.cv2_to_imgmsg(image_out, encoding="passthrough")
         except CvBridgeError as e:
             print(e)
