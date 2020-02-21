@@ -48,65 +48,86 @@ def connected_component(img, label):
     return pixExplored
 
 
-img = cv2.imread('3118.jpg')
-rows, cols, _ = img.shape
 
-for i in range(rows):
-    for j in range(cols):
-        if(img[i,j,0] != 14):
-            img[i,j,0] = 0
-        else:
-            img[i,j,0] = 1
-        
 
-kernel = np.ones((3,3), np.uint8)
-crosswalk = np.copy(img[:,:,0])
-plt.figure(0)
-plt.imshow(crosswalk)
-crosswalk = cv2.erode(crosswalk, kernel, iterations=1)
+def generate_convex_hull(img, vis=False):
+    rows, cols, _ = img.shape
 
-plt.figure(1)
-plt.imshow(crosswalk)
-crosswalks = connected_component(crosswalk, 1)
-
-plt.figure(2)
-plt.imshow(crosswalks)
-
-select_index = 11
-chosen_crosswalk = np.copy(crosswalks)
-crosswalk_pts = np.zeros((1,2))
-
-for i in range(rows):
-    for j in range(cols):
-        if(chosen_crosswalk[i,j] == select_index):
-            crosswalk_pts = np.vstack((crosswalk_pts, np.array([i, j])))
-        else:
-            chosen_crosswalk[i,j] = 9
-plt.figure(3)
-plt.imshow(chosen_crosswalk)
-            
-crosswalk_pts = crosswalk_pts[1:, :]
-crosswalk_pts = np.fliplr(crosswalk_pts)
-hull = ConvexHull(points=crosswalk_pts, qhull_options='Q64')
-fig = plt.figure(4)
-ax = fig.add_subplot(1,1,1)
-convex_hull_plot_2d(hull, ax=ax)  
-
-plt.figure(5)
-plt.imshow(img[:,:,0])
-#x_vertices = crosswalk_pts[hull.simplices[:,0], 0]
-#y_vertices = crosswalk_pts[hull.simplices[:,1], 1]
-nodes = np.hstack((hull.vertices, hull.vertices[0]))
-x_vertices = crosswalk_pts[nodes, 0]
-y_vertices = crosswalk_pts[nodes, 1]
-plt.scatter(x_vertices, y_vertices, s=50, c='red', marker='o')
-plt.plot(x_vertices, y_vertices, c='red')
-plt.show()
+    for i in range(rows):
+        for j in range(cols):
+            if(img[i,j,0] != 14):
+                img[i,j,0] = 0
+            else:
+                img[i,j,0] = 1
+    # view = img[:,:,0]
+    # view[view != 14] = 1
+    # view[view == 14] = 0
     
+    kernel = np.ones((3,3), np.uint8)
+    crosswalk = np.copy(img[:,:,0])
+    if vis == True:
+        plt.figure(0)
+        plt.imshow(crosswalk)
+    crosswalk = cv2.erode(crosswalk, kernel, iterations=1)
 
+    if vis == True:
+        plt.figure(1)
+        plt.imshow(crosswalk)
+    crosswalks = connected_component(crosswalk, 1)
 
-# In[54]:
+    if vis == True:
+        plt.figure(2)
+        plt.imshow(crosswalks)
 
+    select_index = 11
+    chosen_crosswalk = np.copy(crosswalks)
+    crosswalk_pts = np.zeros((1,2))
 
-np.hstack((hull.vertices[0], 873))
+    for i in range(rows):
+        for j in range(cols):
+            if(chosen_crosswalk[i,j] == select_index):
+                crosswalk_pts = np.vstack((crosswalk_pts, np.array([i, j])))
+            else:
+                chosen_crosswalk[i,j] = 9
 
+    crosswalk_pts = crosswalk_pts[1:, :]
+    crosswalk_pts = np.fliplr(crosswalk_pts)
+    hull = ConvexHull(points=crosswalk_pts, qhull_options='Q64')
+    
+    nodes = np.hstack((hull.vertices, hull.vertices[0]))
+    vertices = crosswalk_pts[nodes, :]
+    x_vertices = vertices[:, 0]
+    y_vertices = vertices[:, 1]
+    
+    if vis == True:
+        plt.figure(3)
+        plt.imshow(chosen_crosswalk)
+
+        fig = plt.figure(4)
+        ax = fig.add_subplot(1,1,1)
+        convex_hull_plot_2d(hull, ax=ax)  
+
+        plt.figure(5)
+        plt.imshow(img[:,:,0])
+        
+        plt.scatter(x_vertices, y_vertices, s=50, c='red', marker='o')
+        plt.plot(x_vertices, y_vertices, c='red')
+        plt.show()
+    
+    return vertices.T
+
+def test_generate_convec_hull():
+    import time
+
+    img = cv2.imread('/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/network_output_example/preds/3118.jpg')
+
+    tic = time.time()
+    generate_convex_hull(img)
+    toc = time.time()
+    print("running time: {:.6f}s".format(toc - tic))
+
+def main():
+    test_generate_convec_hull()
+
+if __name__ == "__main__":
+    main()
