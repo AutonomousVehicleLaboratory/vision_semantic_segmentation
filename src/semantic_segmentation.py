@@ -6,8 +6,6 @@ Date:February 14, 2020
 
 # module
 from __future__ import absolute_import, division, print_function, unicode_literals # python2 compatibility
-import numpy as np
-# import cv2
 # parameters
 
 import os.path as osp
@@ -16,7 +14,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as T
 
-sys.path.insert(0, osp.join(osp.dirname(__file__), "network"))
+sys.path.insert(0, "network")
 
 from deeplab_v3_plus.models.build import build_model
 
@@ -70,9 +68,9 @@ def main():
 
 if __name__ == "__main__":
     main()
-
+    print(osp.dirname(__file__))
     from network.deeplab_v3_plus.config.demo import cfg
-    config_file = osp.dirname(__file__) + '/../config/avl.yaml'
+    config_file = '../config/avl.yaml'
     cfg.merge_from_file(config_file)
 
     network = SemanticSegmentation(cfg)

@@ -7,12 +7,17 @@ Date:February 14, 2020
 
 # module
 from __future__ import absolute_import, division, print_function, unicode_literals  # python2 compatibility
-import sys
 
 import cv2
 import os.path as osp
 import rospy
 import numpy as np
+import sys
+
+# Add network directory into the path
+sys.path.insert(0, "network")
+
+import network.deeplab_v3_plus.data.utils.mapillary_visualization as mapillary_visl
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
@@ -21,7 +26,6 @@ from visualization_msgs.msg import Marker
 
 from camera import camera_setup_6
 from network.deeplab_v3_plus.config.demo import cfg
-from network.deeplab_v3_plus.data.utils.mapillary_visualization import mapillary_visl
 from plane_3d import Plane3D
 from semantic_convex_hull import generate_convex_hull
 from semantic_segmentation import SemanticSegmentation  # source code
@@ -37,7 +41,7 @@ class VisionSemanticSegmentationNode:
     def __init__(self):
         # Load the configuration
         # By default we are using the configuration config/avl.yaml
-        config_file = osp.dirname(__file__) + '/../config/avl.yaml'
+        config_file = '../config/avl.yaml'
         cfg.merge_from_file(config_file)
 
         self.image_pub_cam1 = rospy.Publisher("/camera1/semantic", Image, queue_size=1)
