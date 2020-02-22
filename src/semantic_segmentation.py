@@ -23,18 +23,12 @@ from deeplab_v3_plus.models.build import build_model
 
 # classes
 class SemanticSegmentation():
-    def __init__(self, config_file):
+    def __init__(self, cfg):
         """
 
         Args:
-            config_file: The path to the network configuration file
+            cfg: network configuration
         """
-
-        # load the configuration
-        # import on-the-fly to avoid overwriting cfg
-        from deeplab_v3_plus.config.demo import cfg
-        cfg.merge_from_file(config_file)
-
         self.model = build_model(cfg)[0]
         self.model = nn.DataParallel(self.model).cuda()
 
@@ -76,10 +70,12 @@ def main():
 
 if __name__ == "__main__":
     main()
-    network = SemanticSegmentation(config_file=
-    # "/home/qinru/avl/semantic/deeplab/experiments/video_generation/avl.yaml"
-    "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/src/network/experiments/video_generation/avl.yaml"
-    )
+
+    from network.deeplab_v3_plus.config.demo import cfg
+    config_file = osp.dirname(__file__) + '/../config/avl.yaml'
+    cfg.merge_from_file(config_file)
+
+    network = SemanticSegmentation(cfg)
 
     import PIL.Image as Image
     import matplotlib.pyplot as plt
