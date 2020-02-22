@@ -82,8 +82,13 @@ class VisionSemanticSegmentationNode:
         # print(image_in.shape, "-->", image_in_resized.shape)
         image_out_resized = self.seg.segmentation(image_in_resized)
         # print(image_out_resized.shape, "-->", image_in.shape)
+<<<<<<< HEAD
 
         self.generate_and_publish_convex_hull(image_out_resized.astype(np.uint8), msg.header.frame_id)
+=======
+	image_out_resized = image_out_resized.astype(np.uint8)
+        self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id)
+>>>>>>> cfa01ce0fb723d02630735c7ca629f98d76f5486
 
         # NOTE: we use INTER_NEAREST because values are discrete labels
         image_out = cv2.resize(image_out_resized, (image_in.shape[1], image_in.shape[0]),
