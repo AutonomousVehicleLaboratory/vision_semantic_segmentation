@@ -8,7 +8,10 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull, convex_hull_plot_2d
+from skimage.measure import label, regionprops
 import sys
+import time
+import copy
 
 sys.setrecursionlimit(100000)
 def cc_recursive(img,pixExplored, marker,i,j, label):
@@ -47,21 +50,26 @@ def connected_component(img, label):
 
     return pixExplored
 
-def generate_convex_hull(img, vis=False):
+def generate_convex_hull(img, vis=False, index_care_about=14, index_to_vitualize=11):
+    """
+        Generate the convex hull
+        Args:
+            img: input img (h, w, 3)
+            vis: True if vitualize the result
+            index_care_about: index that will be used to generate the convex hull
+            index_to_vitualize: index that will be used to vitualize the result (index of the convex hull)
+        Returns:
+            vertices: extracted vertices
+    """
     rows, cols, _ = img.shape
+    img2 = copy.deepcopy(img)
+    img2[img[:,:]!=index_care_about] = 0
+    img2[img[:,:]==index_care_about] = 1
+    img = img2
 
-    for i in range(rows):
-        for j in range(cols):
-            if(img[i,j] != 14):
-                img[i,j] = 0
-            else:
-                img[i,j] = 1
-    # view = img[:,:,0]
-    # view[view != 14] = 1
-    # view[view == 14] = 0
     
     kernel = np.ones((3,3), np.uint8)
-    crosswalk = np.copy(img[:,:,0])
+    crosswalk = np.copy(img[:,:])
     if vis == True:
         plt.figure(0)
         plt.imshow(crosswalk)
@@ -70,22 +78,30 @@ def generate_convex_hull(img, vis=False):
     if vis == True:
         plt.figure(1)
         plt.imshow(crosswalk)
-    crosswalks = connected_component(crosswalk, 1)
+    #crosswalks1 = connected_component(crosswalk, 1)
+    crosswalks = label(crosswalk, connectivity=crosswalk.ndim)
+
 
     if vis == True:
         plt.figure(2)
         plt.imshow(crosswalks)
 
-    select_index = 11
+    select_index = index_to_vitualize
     chosen_crosswalk = np.copy(crosswalks)
     crosswalk_pts = np.zeros((1,2))
-
+    indexes = np.where(chosen_crosswalk==select_index)
+    crosswalk_pts = np.concatenate([np.array([i,j]).reshape(1,2) for (i,j) in zip(*indexes)])
+    chosen_crosswalk[chosen_crosswalk!=select_index] = 9
+    """
     for i in range(rows):
         for j in range(cols):
             if(chosen_crosswalk[i,j] == select_index):
                 crosswalk_pts = np.vstack((crosswalk_pts, np.array([i, j])))
             else:
                 chosen_crosswalk[i,j] = 9
+    """
+
+
 
     crosswalk_pts = crosswalk_pts[1:, :]
     crosswalk_pts = np.fliplr(crosswalk_pts)
@@ -105,7 +121,7 @@ def generate_convex_hull(img, vis=False):
         convex_hull_plot_2d(hull, ax=ax)  
 
         plt.figure(5)
-        plt.imshow(img[:,:,0])
+        plt.imshow(img[:,:])
         
         plt.scatter(x_vertices, y_vertices, s=50, c='red', marker='o')
         plt.plot(x_vertices, y_vertices, c='red')
@@ -119,7 +135,7 @@ def test_generate_convec_hull():
     img = cv2.imread('/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/network_output_example/preds/3118.jpg')
 
     tic = time.time()
-    generate_convex_hull(img)
+    generate_convex_hull(img, False)
     toc = time.time()
     print("running time: {:.6f}s".format(toc - tic))
 
