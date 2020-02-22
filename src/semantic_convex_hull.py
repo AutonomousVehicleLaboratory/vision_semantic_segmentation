@@ -61,7 +61,7 @@ def generate_convex_hull(img, vis=False, index_care_about=14, index_to_vitualize
         Returns:
             vertices: extracted vertices
     """
-    rows, cols, _ = img.shape
+    rows, cols = img.shape
     img2 = copy.deepcopy(img)
     img2[img[:,:]!=index_care_about] = 0
     img2[img[:,:]==index_care_about] = 1
