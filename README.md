@@ -25,9 +25,15 @@ Notice: this input topic is not published by vehicle, it is from vision_darknet_
 
 1. Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Publication-IROS2020`). 
 
-2. Open `config/avl.yaml` and set the `MODEL.WEIGHT` as the path to the trained weight. 
+2. Create your local configuration by creating a copy from the template YAML file
 
-3. Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
+   ```
+   cp config/template.yaml config/avl.yaml
+   ```
+
+3. Open `config/avl.yaml` and set the `MODEL.WEIGHT` as the path to the trained weight. 
+
+4. Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
 
 ## TODO
 
