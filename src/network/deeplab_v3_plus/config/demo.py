@@ -16,7 +16,7 @@ _C.OUTPUT_DIR = '@'
 _C.OUTPUT_NAME = ""
 # Training dataset
 _C.TRAIN_DATASET = ""
-_C.TRAIN_DATASET_DIR = ""
+_C.DATASET_CONFIG = ""
 # ================================================== #
 # Dataset
 # ================================================== #
