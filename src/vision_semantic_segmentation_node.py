@@ -51,7 +51,7 @@ class VisionSemanticSegmentationNode:
 
         self.seg = SemanticSegmentation(cfg)
         self.seg_color_fn = mapillary_visl.apply_color_map
-        self.seg_color_ref = mapillary_visl.get_labels(cfg.TRAIN_DATASET_DIR)
+        self.seg_color_ref = mapillary_visl.get_labels(cfg.DATASET_CONFIG)
 
         self.image_sub_cam1 = rospy.Subscriber("/camera1/image_raw", Image, self.callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.callback)

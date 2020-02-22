@@ -12,7 +12,7 @@ def get_labels(data_dir):
     Args:
         data_dir (str): fetch the label from the data_dir
     """
-    config_file = osp.join(data_dir, "config.json")
+    config_file = data_dir
     with open(config_file) as f:
         config = json.load(f)
     return config["labels"]
