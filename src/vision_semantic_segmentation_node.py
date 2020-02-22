@@ -72,7 +72,7 @@ class VisionSemanticSegmentationNode:
         # image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
         # cv2.imshow("Image Input", image_in)
 
-        scale_percent = 25  # percent of original size
+        scale_percent = 50  # percent of original size
         width = int(image_in.shape[1] * scale_percent / 100)
         height = int(image_in.shape[0] * scale_percent / 100)
         dim = (width, height)
