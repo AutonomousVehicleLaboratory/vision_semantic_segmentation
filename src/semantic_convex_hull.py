@@ -90,8 +90,11 @@ def generate_convex_hull(img, vis=False, index_care_about=14, index_to_vitualize
     chosen_crosswalk = np.copy(crosswalks)
     crosswalk_pts = np.zeros((1,2))
     indexes = np.where(chosen_crosswalk==select_index)
-    crosswalk_pts = np.concatenate([np.array([i,j]).reshape(1,2) for (i,j) in zip(*indexes)])
-    chosen_crosswalk[chosen_crosswalk!=select_index] = 9
+    if len(indexes[0]) !=0:
+        crosswalk_pts = np.concatenate([np.array([i,j]).reshape(1,2) for (i,j) in zip(*indexes)])
+        chosen_crosswalk[chosen_crosswalk!=select_index] = 9
+    else:
+        return None
     """
     for i in range(rows):
         for j in range(cols):
