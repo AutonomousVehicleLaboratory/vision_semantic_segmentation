@@ -120,9 +120,12 @@ class VisionSemanticSegmentationNode:
         if self.plane is None:
             print("not received plane estimation parameters yet")
             return
-        # x = vertices
-        x = np.array([[400, 300, 1100, 1000, 400],
-                      [1150, 1200, 1200, 1150, 1150]])
+        elif:
+            print("not received vertices")
+            return
+        x = vertices
+        # x = np.array([[400, 300, 1100, 1000, 400],
+        #               [1150, 1200, 1200, 1150, 1150]])
 
         d_vec, C_vec = cam.pixel_to_ray_vec(x)
         intersection_vec = self.plane.plane_ray_intersection_vec(d_vec, C_vec)
