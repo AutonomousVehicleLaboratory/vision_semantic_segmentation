@@ -31,7 +31,7 @@ Notice: this input topic is not published by vehicle, it is from vision_darknet_
    cp config/template.yaml config/avl.yaml
    ```
 
-3. Open `config/avl.yaml` and set the `MODEL.WEIGHT` as the path to the trained weight. 
+3. Open `config/avl.yaml` and set the `MODEL.WEIGHT` as the path to the trained weight. Set the `DATASET_CONFIG` to the path to the configuration file of the dataset so that you can visualize the semantic output in color.  
 
 4. Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
 
