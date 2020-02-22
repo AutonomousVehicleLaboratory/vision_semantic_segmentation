@@ -52,6 +52,7 @@ def connected_component(img, label):
     return pixExplored
 
 def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=None, top_number=1, area_threshold=30):
+
     """
         Generate the convex hull
         Args:
@@ -64,6 +65,8 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
         Returns:
             vertices: extracted vertices; list of numpy arrays; array shape- -- [2, number of vertices]
     """
+    cv2.imwrite("tempimage.jpg", img)
+    exit(0)
     rows, cols = img.shape
     img[img[:,:]!=index_care_about] = 0
     img[img[:,:]==index_care_about] = 1
