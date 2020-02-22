@@ -111,18 +111,22 @@ class VisionSemanticSegmentationNode:
             cam = self.cam1
         elif cam_frame_id == "camera6":
             cam = self.cam6
-        # print("using hardcoded data")
+        print("using hardcoded data")
         vertices = generate_convex_hull(image, vis=False)
-        # print("vertices:\n", vertices)
+        print("vertices:\n", vertices)
+        
         self.cam_back_project_convex_hull(cam, vertices)
 
     def cam_back_project_convex_hull(self, cam, vertices):
         if self.plane is None:
             print("not received plane estimation parameters yet")
             return
-        elif:
+        elif vertices is None:
             print("not received vertices")
             return
+        
+        print("vertices received!")
+        print(vertices)
         x = vertices
         # x = np.array([[400, 300, 1100, 1000, 400],
         #               [1150, 1200, 1200, 1150, 1150]])
@@ -135,7 +139,7 @@ class VisionSemanticSegmentationNode:
 
     def plane_callback(self, msg):
         self.plane = Plane3D(msg.coef[0], msg.coef[1], msg.coef[2], msg.coef[3])
-        print("plane received: ", self.plane.param)
+        # print("plane received: ", self.plane.param.T)
 
 
 # main
