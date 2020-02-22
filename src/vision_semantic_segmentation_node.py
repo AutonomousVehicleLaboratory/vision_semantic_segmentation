@@ -111,10 +111,9 @@ class VisionSemanticSegmentationNode:
             cam = self.cam1
         elif cam_frame_id == "camera6":
             cam = self.cam6
-        img = cv2.imread('/mnt/avl_shared/user-files/henry/pylidarmot/src/vision_semantic_segmentation/network_output_example/preds/3118.jpg')
-        print("using hardcoded data")
-        vertices = generate_convex_hull(img, vis=False)
-        print("vertices:\n", vertices)
+        # print("using hardcoded data")
+        vertices = generate_convex_hull(image, vis=False)
+        # print("vertices:\n", vertices)
         self.cam_back_project_convex_hull(cam, vertices)
 
     def cam_back_project_convex_hull(self, cam, vertices):
