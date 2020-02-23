@@ -22,7 +22,7 @@ import network.deeplab_v3_plus.data.utils.mapillary_visualization as mapillary_v
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from shape_msgs.msg import Plane
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 
 from camera import camera_setup_6
 from network.deeplab_v3_plus.config.demo import cfg
@@ -45,7 +45,7 @@ class VisionSemanticSegmentationNode:
 
         self.image_pub_cam1 = rospy.Publisher("/camera1/semantic", Image, queue_size=1)
         self.image_pub_cam6 = rospy.Publisher("/camera6/semantic", Image, queue_size=1)
-        self.pub_convex_hull_markers = rospy.Publisher("/estimated_convex_hull_rviz", Marker, queue_size=10)
+        self.pub_convex_hull_markers = rospy.Publisher("/estimated_convex_hull_rviz", MarkerArray, queue_size=10)
         
         # Load the configuration
         # By default we are using the configuration config/avl.yaml
@@ -121,31 +121,35 @@ class VisionSemanticSegmentationNode:
         elif cam_frame_id == "camera6":
             cam = self.cam6
         print("using hardcoded data")
-        vertices = generate_convex_hull(image, vis=False)
-        print("vertices:\n", vertices)
+        vertice_list = generate_convex_hull(image, vis=False)
+        print("vertice_list:\n", vertice_list)
         
-        self.cam_back_project_convex_hull(cam, vertices)
+        self.cam_back_project_convex_hull(cam, vertice_list)
 
 
-    def cam_back_project_convex_hull(self, cam, vertices):
+    def cam_back_project_convex_hull(self, cam, vertice_list):
         if self.plane is None:
             print("not received plane estimation parameters yet")
             return
-        elif vertices is None:
-            print("not received vertices")
+        elif len(vertice_list) == 0:
+            print("vertice_list empty!")
             return
         
-        print("vertices received!")
-        print(vertices)
-        x = vertices
-        # x = np.array([[400, 300, 1100, 1000, 400],
-        #               [1150, 1200, 1200, 1150, 1150]])
+        print("vertice_list non empty!")
 
-        d_vec, C_vec = cam.pixel_to_ray_vec(x)
-        intersection_vec = self.plane.plane_ray_intersection_vec(d_vec, C_vec)
-        marker = visualize_marker([0, 0, 0], frame_id="velodyne", mkr_type="line_strip", scale=0.1,
-                                  points=intersection_vec.T)
-        self.pub_convex_hull_markers.publish(marker)
+        vertices_marker_array = MarkerArray()
+        for vertices in vertice_list:
+            print(vertices)
+            x = vertices
+            # x = np.array([[400, 300, 1100, 1000, 400],
+            #               [1150, 1200, 1200, 1150, 1150]])
+
+            d_vec, C_vec = cam.pixel_to_ray_vec(x)
+            intersection_vec = self.plane.plane_ray_intersection_vec(d_vec, C_vec)
+            marker = visualize_marker([0, 0, 0], frame_id="velodyne", mkr_type="line_strip", scale=0.1,
+                                    points=intersection_vec.T)
+            vertices_marker_array.markers.append(marker)
+        self.pub_convex_hull_markers.publish(vertices_marker_array)
 
 
     def plane_callback(self, msg):
