@@ -13,6 +13,8 @@ from collections import Counter
 import sys
 import time
 import copy
+import rospy
+
 sys.setrecursionlimit(100000)
 def cc_recursive(img,pixExplored, marker,i,j, label):
     pixExplored[i,j] = marker
@@ -64,7 +66,10 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
         Returns:
             vertices: extracted vertices; list of numpy arrays; array shape- -- [2, number of vertices]
     """
+<<<<<<< HEAD
     #cv2.imwrite("tempimage.jpg", img)
+=======
+>>>>>>> refs/remotes/origin/visualization
     rows, cols = img.shape
     img[img[:,:]!=index_care_about] = 0
     img[img[:,:]==index_care_about] = 1
@@ -80,11 +85,11 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
     if vis == True:
         plt.figure(1)
         plt.imshow(crosswalk)
-    # crosswalks1 = connected_component(crosswalk, 1)
+
     crosswalks = label(crosswalk, connectivity=crosswalk.ndim)
 
     if np.all(crosswalks==0):
-        return None
+        return []
     if vis == True:
         plt.figure(2)
         plt.imshow(crosswalks)
@@ -101,15 +106,19 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
         # Here I modefy comment the next line. And calculate all the vertices for 
         # chosen_crosswalk[chosen_crosswalk!=select_index] = 9
 
-
         crosswalk_pts = crosswalk_pts[1:, :]
         crosswalk_pts = np.fliplr(crosswalk_pts)
+
         # hull = ConvexHull(points=crosswalk_pts, qhull_options='Q64')
         # nodes = np.hstack((hull.vertices, hull.vertices[0]))
         #vertices.append(crosswalk_pts[nodes, :].T)
+        rospy.logwarn('before hull')
         hull = cv2.convexHull(crosswalk_pts)
+        rospy.logwarn('after hull')
         nodes = np.concatenate([np.squeeze(hull), hull[0,:,:].reshape(1,-1)],axis=0).T
         vertices.append(nodes)
+
+
         x_vertices = vertices[-1][0, :]
         y_vertices = vertices[-1][1, :]
     
@@ -128,7 +137,7 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
         plt.show()
     return vertices
 
-def test_generate_convec_hull():
+def test_generate_convex_hull():
     import time
 
     img = cv2.imread('./tempimage.jpg', cv2.IMREAD_GRAYSCALE)
@@ -138,8 +147,18 @@ def test_generate_convec_hull():
     toc = time.time()
     print("running time: {:.6f}s".format(toc - tic))
 
+def test_generate_convex_hull_segfault():
+    rospy.init_node('fake_node')
+    arr = np.load('test/debug.npy')
+    # print(arr)
+    vertices = generate_convex_hull(arr)
+    
+    # if you do not see printint this, it is because a segmentation fault
+    print(vertices)
+
 def main():
-    test_generate_convec_hull()
+    # test_generate_convex_hull()
+    test_generate_convex_hull_segfault()
 
 if __name__ == "__main__":
     main()
