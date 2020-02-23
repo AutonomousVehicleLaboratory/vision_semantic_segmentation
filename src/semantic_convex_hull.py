@@ -66,10 +66,6 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
         Returns:
             vertices: extracted vertices; list of numpy arrays; array shape- -- [2, number of vertices]
     """
-<<<<<<< HEAD
-    #cv2.imwrite("tempimage.jpg", img)
-=======
->>>>>>> refs/remotes/origin/visualization
     rows, cols = img.shape
     img[img[:,:]!=index_care_about] = 0
     img[img[:,:]==index_care_about] = 1
