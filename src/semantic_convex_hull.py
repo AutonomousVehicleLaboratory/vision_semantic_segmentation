@@ -13,7 +13,6 @@ from collections import Counter
 import sys
 import time
 import copy
-import pdb
 sys.setrecursionlimit(100000)
 def cc_recursive(img,pixExplored, marker,i,j, label):
     pixExplored[i,j] = marker
@@ -65,8 +64,7 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
         Returns:
             vertices: extracted vertices; list of numpy arrays; array shape- -- [2, number of vertices]
     """
-    cv2.imwrite("tempimage.jpg", img)
-    exit(0)
+    #cv2.imwrite("tempimage.jpg", img)
     rows, cols = img.shape
     img[img[:,:]!=index_care_about] = 0
     img[img[:,:]==index_care_about] = 1
@@ -106,9 +104,12 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
 
         crosswalk_pts = crosswalk_pts[1:, :]
         crosswalk_pts = np.fliplr(crosswalk_pts)
-        hull = ConvexHull(points=crosswalk_pts, qhull_options='Q64')
-        nodes = np.hstack((hull.vertices, hull.vertices[0]))
-        vertices.append(crosswalk_pts[nodes, :].T)
+        # hull = ConvexHull(points=crosswalk_pts, qhull_options='Q64')
+        # nodes = np.hstack((hull.vertices, hull.vertices[0]))
+        #vertices.append(crosswalk_pts[nodes, :].T)
+        hull = cv2.convexHull(crosswalk_pts)
+        nodes = np.concatenate([np.squeeze(hull), hull[0,:,:].reshape(1,-1)],axis=0).T
+        vertices.append(nodes)
         x_vertices = vertices[-1][0, :]
         y_vertices = vertices[-1][1, :]
     
@@ -118,11 +119,10 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
 
         fig = plt.figure(4)
         ax = fig.add_subplot(1,1,1)
-        convex_hull_plot_2d(hull, ax=ax)  
-
+        # this function used the previous scipy.spatial.ConvexHull API which output the index but cv2 returns points directly
+        #convex_hull_plot_2d(hull, ax=ax) 
         plt.figure(5)
-        plt.imshow(img[:,:])
-        
+        plt.imshow(img[:,:])   
         plt.scatter(x_vertices, y_vertices, s=50, c='red', marker='o')
         plt.plot(x_vertices, y_vertices, c='red')
         plt.show()
