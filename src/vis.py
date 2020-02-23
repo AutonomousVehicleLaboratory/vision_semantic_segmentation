@@ -16,7 +16,7 @@ from geometry_msgs.msg import Point
 
 
 # functions
-def visualize_marker(point, mkr_id=0, frame_id="base_link", mkr_type="sphere", orientation = None, scale = 1., points = None):
+def visualize_marker(point, mkr_id=0, frame_id="base_link", mkr_type="sphere", orientation = None, scale = 1., points = None, lifetime = 1.0):
     """ create a marker 
 
     Params:
@@ -36,7 +36,11 @@ def visualize_marker(point, mkr_id=0, frame_id="base_link", mkr_type="sphere", o
     
     # Marker ID
     marker.id = mkr_id # each marker in the array needs to be assign to a differen id
-    marker.lifetime.secs = 1
+
+    nsecs = int(lifetime % 1.0 * 1e9)
+    secs = int(lifetime)
+    marker.lifetime.secs = secs
+    marker.lifetime.nsecs = nsecs
 
     # Color of Marker
     marker.color.a = 0.8

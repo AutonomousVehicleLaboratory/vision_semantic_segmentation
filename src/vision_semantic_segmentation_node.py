@@ -61,6 +61,7 @@ class VisionSemanticSegmentationNode:
         self.cam1 = camera_setup_6()
         print("WARNING: using camera 6 data for camera 1 since it is not calibrated!")
         
+        self.hull_id = 0
         self.bridge = CvBridge()
 
 
@@ -123,7 +124,6 @@ class VisionSemanticSegmentationNode:
             cam = self.cam6
         
         vertice_list = generate_convex_hull(image, vis=False)
-        print("vertice_list:\n", vertice_list)
         
         # scale vertices to true position in original image (network output is small)
         scale_x = float(cam.imSize[0]) / image.shape[1]
@@ -151,12 +151,15 @@ class VisionSemanticSegmentationNode:
 
         vertices_marker_array = MarkerArray()
         for vertices in vertice_list:
-            print(vertices)
+            # print(vertices)
             x = vertices
             d_vec, C_vec = cam.pixel_to_ray_vec(x)
             intersection_vec = self.plane.plane_ray_intersection_vec(d_vec, C_vec)
-            marker = visualize_marker([0, 0, 0], frame_id="velodyne", mkr_type="line_strip", scale=0.1,
-                                    points=intersection_vec.T)
+
+            self.hull_id += 1
+            vis_time = 10.0 # convex_hull marker alive time 
+            marker = visualize_marker([0, 0, 0], mkr_id=self.hull_id, frame_id="velodyne", mkr_type="line_strip", scale=0.1,
+                                    points=intersection_vec.T, lifetime=vis_time)
             vertices_marker_array.markers.append(marker)
 
         self.pub_convex_hull_markers.publish(vertices_marker_array)
