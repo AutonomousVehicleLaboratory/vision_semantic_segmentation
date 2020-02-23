@@ -49,18 +49,6 @@ Notice: this input topic is not published by vehicle, it is from vision_darknet_
 
 4. Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
 
-## Know issue
-
-1. The ConvexHull from scipy 1.2.0 has bug, but 1.2.0 is the last one suport python2.7 (from ROS Kinetics)
-   
-   https://github.com/scipy/scipy/issues/6484
-
-   You can run the test of the single module by running the following comment in the root directory
-   ```
-   python src/semantic_convex_hull.py
-   ```
-   the program will stuck. Return Segmentation fault if you kill it.
-   This will happen for several frames in our testing rosbag (around 183s, 275s). data from 275s has been placed in test/debug.npy and will be read and reproduce the bug if you run the above command.
 
 ## TODO
 
