@@ -56,6 +56,7 @@ class VisionSemanticSegmentationNode:
         self.seg_color_ref = mapillary_visl.get_labels(cfg.DATASET_CONFIG)
         
         self.plane = None
+        self.plane_last_update_time = rospy.get_rostime()
         self.cam6 = camera_setup_6()
         self.cam1 = camera_setup_6()
         print("WARNING: using camera 6 data for camera 1 since it is not calibrated!")
@@ -85,13 +86,13 @@ class VisionSemanticSegmentationNode:
         
         ## semantic segmentation
         image_out_resized = self.seg.segmentation(image_in_resized)
-        
+
         # print(image_out_resized.shape, "-->", image_in.shape)
         image_out_resized = image_out_resized.astype(np.uint8)
 
         ## semantic extraction
         self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id)
-
+        
         # NOTE: we use INTER_NEAREST because values are discrete labels
         image_out = cv2.resize(image_out_resized, (image_in.shape[1], image_in.shape[0]),
                                interpolation=cv2.INTER_NEAREST)
@@ -134,14 +135,19 @@ class VisionSemanticSegmentationNode:
         
 
     def cam_back_project_convex_hull(self, cam, vertice_list):
-        if self.plane is None:
-            print("not received plane estimation parameters yet")
-            return
-        elif len(vertice_list) == 0:
+        if len(vertice_list) == 0:
             print("vertice_list empty!")
             return
+
+        current_time = rospy.get_rostime()
+        duration = current_time - self.plane_last_update_time
+        rospy.logdebug("duration: %d.%09d s", duration.secs, duration.nsecs)
+
+        if duration.secs != 0 or duration.nsecs > 1e8:
+            rospy.logwarn('too long since last update of plane %d.%09d s, use a fixed plane', duration.secs, duration.nsecs)
+            self.plane = Plane3D(-0.158, -0.003, 0.987, 1.96)
         
-        print("vertice_list non empty!")
+        print("vertice_list non empty!, length ", len(vertice_list))
 
         vertices_marker_array = MarkerArray()
         for vertices in vertice_list:
@@ -152,18 +158,20 @@ class VisionSemanticSegmentationNode:
             marker = visualize_marker([0, 0, 0], frame_id="velodyne", mkr_type="line_strip", scale=0.1,
                                     points=intersection_vec.T)
             vertices_marker_array.markers.append(marker)
+
         self.pub_convex_hull_markers.publish(vertices_marker_array)
 
 
     def plane_callback(self, msg):
         self.plane = Plane3D(msg.coef[0], msg.coef[1], msg.coef[2], msg.coef[3])
+        self.plane_last_update_time = rospy.get_rostime()
         # print("plane received: ", self.plane.param.T)
 
 
 # main
 def main(args):
-    vss = VisionSemanticSegmentationNode()
     rospy.init_node('vision_semantic_segmentation')
+    vss = VisionSemanticSegmentationNode()
     rate = rospy.Rate(15)  # ROS Rate at 15Hz, note that from rosbag, the image comes at 12Hz
 
     while not rospy.is_shutdown():
