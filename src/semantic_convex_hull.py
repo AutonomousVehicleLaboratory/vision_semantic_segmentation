@@ -7,50 +7,12 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.spatial import ConvexHull, convex_hull_plot_2d
 from skimage.measure import label, regionprops
 from collections import Counter
 import sys
 import time
 import copy
 import rospy
-
-sys.setrecursionlimit(100000)
-def cc_recursive(img,pixExplored, marker,i,j, label):
-    pixExplored[i,j] = marker
-    #check all 8 neightbords and handle corner cases
-    rows,cols = img.shape
-    #(i-1,j-1)
-    for m in range(i-1,i+2):
-        for n in range(j-1,j+2):
-            if((m-1 < 0) or (n-1 < 0) or(m+1 > rows) or (n+1 > cols)):
-                continue
-            else:
-
-                if((img[m,n] == label) and (pixExplored[m,n] == 0) ):
-                    cc_recursive(img,pixExplored, marker,m,n,label)
-    
-    
-def connected_component(img, label):
-    # your code here
-    x,y = img.shape
-    #explored pixels
-    pixExplored = np.zeros(shape=(x,y))
-    
-    #Keeps track of the current CC
-    marker = 1
-    
-    for i in range(0,x):
-        for j in range(0,y):
-            if((img[i,j] == label) and (pixExplored[i,j]==0)):
-                #pixExplored[i,j] = marker
-                
-                #Update Neighbors
-                cc_recursive(img,pixExplored, marker,i,j, label)
-                #Update marker
-                marker = marker+1
-
-    return pixExplored
 
 def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=None, top_number=1, area_threshold=30):
 
@@ -105,16 +67,9 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
         crosswalk_pts = crosswalk_pts[1:, :]
         crosswalk_pts = np.fliplr(crosswalk_pts)
 
-        # hull = ConvexHull(points=crosswalk_pts, qhull_options='Q64')
-        # nodes = np.hstack((hull.vertices, hull.vertices[0]))
-        #vertices.append(crosswalk_pts[nodes, :].T)
-        rospy.logwarn('before hull')
         hull = cv2.convexHull(crosswalk_pts)
-        rospy.logwarn('after hull')
         nodes = np.concatenate([np.squeeze(hull), hull[0,:,:].reshape(1,-1)],axis=0).T
         vertices.append(nodes)
-
-
         x_vertices = vertices[-1][0, :]
         y_vertices = vertices[-1][1, :]
     
@@ -124,8 +79,6 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
 
         fig = plt.figure(4)
         ax = fig.add_subplot(1,1,1)
-        # this function used the previous scipy.spatial.ConvexHull API which output the index but cv2 returns points directly
-        #convex_hull_plot_2d(hull, ax=ax) 
         plt.figure(5)
         plt.imshow(img[:,:])   
         plt.scatter(x_vertices, y_vertices, s=50, c='red', marker='o')
