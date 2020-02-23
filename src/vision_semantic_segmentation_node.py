@@ -120,12 +120,18 @@ class VisionSemanticSegmentationNode:
             cam = self.cam1
         elif cam_frame_id == "camera6":
             cam = self.cam6
-        print("using hardcoded data")
+        
         vertice_list = generate_convex_hull(image, vis=False)
         print("vertice_list:\n", vertice_list)
         
+        # scale vertices to true position in original image (network output is small)
+        scale_x = float(cam.imSize[0]) / image.shape[1]
+        scale_y = float(cam.imSize[1]) / image.shape[0]
+        for i in range(len(vertice_list)):
+            vertice_list[i] = vertice_list[i] * np.array([[scale_x, scale_y]]).T
+        
         self.cam_back_project_convex_hull(cam, vertice_list)
-
+        
 
     def cam_back_project_convex_hull(self, cam, vertice_list):
         if self.plane is None:
@@ -141,9 +147,6 @@ class VisionSemanticSegmentationNode:
         for vertices in vertice_list:
             print(vertices)
             x = vertices
-            # x = np.array([[400, 300, 1100, 1000, 400],
-            #               [1150, 1200, 1200, 1150, 1150]])
-
             d_vec, C_vec = cam.pixel_to_ray_vec(x)
             intersection_vec = self.plane.plane_ray_intersection_vec(d_vec, C_vec)
             marker = visualize_marker([0, 0, 0], frame_id="velodyne", mkr_type="line_strip", scale=0.1,
