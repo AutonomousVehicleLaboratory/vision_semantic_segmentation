@@ -65,8 +65,8 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
         Returns:
             vertices: extracted vertices; list of numpy arrays; array shape- -- [2, number of vertices]
     """
-    cv2.imwrite("tempimage.jpg", img)
-    exit(0)
+    # cv2.imwrite("tempimage.jpg", img)
+    # exit(0)
     rows, cols = img.shape
     img[img[:,:]!=index_care_about] = 0
     img[img[:,:]==index_care_about] = 1
@@ -86,7 +86,7 @@ def generate_convex_hull(img, vis=False, index_care_about=1, index_to_vitualize=
     crosswalks = label(crosswalk, connectivity=crosswalk.ndim)
 
     if np.all(crosswalks==0):
-        return None
+        return []
     if vis == True:
         plt.figure(2)
         plt.imshow(crosswalks)
