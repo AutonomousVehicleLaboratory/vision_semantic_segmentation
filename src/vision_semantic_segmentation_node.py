@@ -71,10 +71,8 @@ class VisionSemanticSegmentationNode:
         except CvBridgeError as e:
             print(e)
         
-        ## Image preprocessing
-        # Is the image in BGR or RGB format?
+        ## ========== Image preprocessing
         image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
-        # cv2.imshow("Image Input", image_in)
         
         # resize image
         scale_percent = 50  # percent of original size
@@ -85,20 +83,20 @@ class VisionSemanticSegmentationNode:
         image_in_resized = cv2.resize(image_in, dim, interpolation=cv2.INTER_AREA)
         # print(image_in.shape, "-->", image_in_resized.shape)
         
-        ## semantic segmentation
+        ## ========== semantic segmentation
         image_out_resized = self.seg.segmentation(image_in_resized)
 
         # print(image_out_resized.shape, "-->", image_in.shape)
         image_out_resized = image_out_resized.astype(np.uint8)
 
-        ## semantic extraction
+        ## ========== semantic extraction
         self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id)
         
         # NOTE: we use INTER_NEAREST because values are discrete labels
         image_out = cv2.resize(image_out_resized, (image_in.shape[1], image_in.shape[0]),
                                interpolation=cv2.INTER_NEAREST)
         
-        ## Visualize semantic images
+        ## ========== Visualize semantic images
         # Convert network label to color
         colored_output = self.seg_color_fn(image_out, self.seg_color_ref)
         colored_output = np.squeeze(colored_output)
@@ -144,8 +142,7 @@ class VisionSemanticSegmentationNode:
         rospy.logdebug("duration: %d.%09d s", duration.secs, duration.nsecs)
 
         if duration.secs != 0 or duration.nsecs > 1e8:
-            rospy.logwarn('too long since last update of plane %d.%09d s, use a fixed plane', duration.secs, duration.nsecs)
-            self.plane = Plane3D(-0.158, -0.003, 0.987, 1.96)
+            rospy.logwarn('too long since last update of plane %d.%09d s, please use smaller image', duration.secs, duration.nsecs)
         
         print("vertice_list non empty!, length ", len(vertice_list))
 
