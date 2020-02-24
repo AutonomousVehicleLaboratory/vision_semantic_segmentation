@@ -33,6 +33,7 @@ def visualize_marker(point, mkr_id=0, frame_id="base_link", mkr_type="sphere", o
     marker = Marker()
     marker.header.frame_id = frame_id.encode("ascii", "ignore")
     marker.header.stamp = rospy.get_rostime()
+    marker.action = 0 # modify
     
     # Marker ID
     marker.id = mkr_id # each marker in the array needs to be assign to a differen id
