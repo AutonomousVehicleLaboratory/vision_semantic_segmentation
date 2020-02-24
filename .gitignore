@@ -10,3 +10,5 @@ tempimage.jpg
 # Ignore all the config file except template.yaml
 config/*.yaml
 !config/template.yaml
+
+.DS_Store
