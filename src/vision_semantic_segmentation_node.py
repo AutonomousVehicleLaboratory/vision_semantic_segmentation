@@ -45,7 +45,8 @@ class VisionSemanticSegmentationNode:
 
         self.image_pub_cam1 = rospy.Publisher("/camera1/semantic", Image, queue_size=1)
         self.image_pub_cam6 = rospy.Publisher("/camera6/semantic", Image, queue_size=1)
-        self.pub_convex_hull_markers = rospy.Publisher("/estimated_convex_hull_rviz", MarkerArray, queue_size=10)
+        self.pub_crosswalk_markers = rospy.Publisher("/crosswalk_convex_hull_rviz", MarkerArray, queue_size=10)
+        self.pub_road_markers = rospy.Publisher("/road_convex_hull_rviz", MarkerArray, queue_size=10)
         
         # Load the configuration
         # By default we are using the configuration config/avl.yaml
@@ -90,7 +91,8 @@ class VisionSemanticSegmentationNode:
         image_out_resized = image_out_resized.astype(np.uint8)
 
         ## ========== semantic extraction
-        self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id)
+        self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id, index_care_about=2) # cross walk
+        self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id, index_care_about=1) # road
         
         # NOTE: we use INTER_NEAREST because values are discrete labels
         image_out = cv2.resize(image_out_resized, (image_in.shape[1], image_in.shape[0]),
@@ -115,13 +117,13 @@ class VisionSemanticSegmentationNode:
             print("publisher not spepcify for this image.")
 
 
-    def generate_and_publish_convex_hull(self, image, cam_frame_id):
+    def generate_and_publish_convex_hull(self, image, cam_frame_id, index_care_about=1):
         if cam_frame_id == "camera1":
             cam = self.cam1
         elif cam_frame_id == "camera6":
             cam = self.cam6
         
-        vertice_list = generate_convex_hull(image, vis=False)
+        vertice_list = generate_convex_hull(image, index_care_about=index_care_about, vis=False)
         
         # scale vertices to true position in original image (network output is small)
         scale_x = float(cam.imSize[0]) / image.shape[1]
@@ -129,10 +131,10 @@ class VisionSemanticSegmentationNode:
         for i in range(len(vertice_list)):
             vertice_list[i] = vertice_list[i] * np.array([[scale_x, scale_y]]).T
         
-        self.cam_back_project_convex_hull(cam, vertice_list)
+        self.cam_back_project_convex_hull(cam, vertice_list, index_care_about=index_care_about)
         
 
-    def cam_back_project_convex_hull(self, cam, vertice_list):
+    def cam_back_project_convex_hull(self, cam, vertice_list, index_care_about=1):
         if len(vertice_list) == 0:
             print("vertice_list empty!")
             return
@@ -154,12 +156,27 @@ class VisionSemanticSegmentationNode:
             intersection_vec = self.plane.plane_ray_intersection_vec(d_vec, C_vec)
 
             self.hull_id += 1
-            vis_time = 10.0 # convex_hull marker alive time 
-            marker = visualize_marker([0, 0, 0], mkr_id=self.hull_id, frame_id="velodyne", mkr_type="line_strip", scale=0.1,
-                                    points=intersection_vec.T, lifetime=vis_time)
+            
+            if index_care_about == 1:
+                color = [0.8, 0., 0., 0.8] # crosswalk is red
+                vis_time = 10.0 # convex_hull marker alive time 
+            else:
+                color = [0.0, 0, 0.8, 0.8] # road is blue
+                vis_time = 3.0
+            marker = visualize_marker([0, 0, 0], 
+                                      mkr_id=self.hull_id, 
+                                      frame_id="velodyne", 
+                                      mkr_type="line_strip", 
+                                      scale=0.1,
+                                      points=intersection_vec.T, 
+                                      lifetime=vis_time, 
+                                      mkr_color=color)
             vertices_marker_array.markers.append(marker)
 
-        self.pub_convex_hull_markers.publish(vertices_marker_array)
+        if index_care_about == 1:
+            self.pub_crosswalk_markers.publish(vertices_marker_array)
+        else:
+            self.pub_road_markers.publish(vertices_marker_array)
 
 
     def plane_callback(self, msg):
