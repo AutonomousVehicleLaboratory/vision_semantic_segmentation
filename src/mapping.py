@@ -10,6 +10,7 @@ import numpy as np
 from homography import generate_homography
 import rospy
 from tf import Transformer, TransformListener, TransformBroadcaster, LookupException, ConnectivityException, ExtrapolationException, TransformerROS
+from tf.transformations import quaternion_matrix
 from geometry_msgs.msg import PoseStamped, TransformStamped
 
 # parameters
@@ -55,14 +56,17 @@ class SemanticMapping:
     
     def calculate_transformation(self, pose):
         try:
-            transform = self.tf_listener_.lookupTransform('/local_map', '/world', rospy.Time(0))
+            (trans, rot) = self.tf_listener_.lookupTransform('/local_map', '/base_link', rospy.Time(0))
         except (LookupException, ConnectivityException, ExtrapolationException):
             print("exception")
-        pose.pose.orientation.w = 1.0    # Neutral orientation
-        tf_pose = self.tf_listener_.transformPose("/local_map", pose)
-        print "Position of the pose in the local map:"
+        # pose.pose.orientation.w = 1.0    # Neutral orientation
+        # tf_pose = self.tf_listener_.transformPose("/world", pose)
+        # R_local = quaternion_matrix(tf_pose.pose.orientation)
+        T = self.tf_ros.fromTranslationRotation(trans, rot)
         
-        print tf_pose
+        print "Position of the pose in the local map:"
+        print T
+        
 
     # def mapping(self, im_src, pose):
     #     self.pose = pose
