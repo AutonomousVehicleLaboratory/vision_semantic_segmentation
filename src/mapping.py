@@ -79,7 +79,7 @@ class SemanticMapping:
         try:
             (trans, rot) = self.tf_listener_.lookupTransform('/local_map', '/base_link', rospy.Time(0))
         except (LookupException, ConnectivityException, ExtrapolationException):
-            print("exception")
+            rospy.logerr("exception, local_map frame may not have setup!")
         # pose.pose.orientation.w = 1.0    # Neutral orientation
         # tf_pose = self.tf_listener_.transformPose("/world", pose)
         # R_local = quaternion_matrix(tf_pose.pose.orientation)
