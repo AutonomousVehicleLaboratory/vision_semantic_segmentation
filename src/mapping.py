@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """ Semantic mapping
 
 Author: Henry Zhang
@@ -14,7 +15,8 @@ from tf import Transformer, TransformListener, TransformBroadcaster, LookupExcep
 from tf.transformations import quaternion_matrix, euler_from_quaternion
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from cv_bridge import CvBridge, CvBridgeError
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs import point_cloud2 as pc2
 
 from camera import camera_setup_6
 from homography import generate_homography
@@ -25,7 +27,8 @@ from homography import generate_homography
 class SemanticMapping:
     def __init__(self, discretization = 0.1, boundary = [[0, 40], [-10, 10]]):
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
-        # self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.image_callback)
+        self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
+        self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.image_callback)
 
         self.tf_listener_ = TransformListener()
         self.br = TransformBroadcaster()
@@ -39,7 +42,15 @@ class SemanticMapping:
         self.pose = None
         self.cam6 = camera_setup_6()
         self.bridge = CvBridge()
+        self.pcd = None
     
+    def pcd_callback(self, msg):
+        rospy.logdebug("pcd data received")
+        rospy.logdebug("pcd size: %d, %d", msg.height, msg.width)
+        self.pcd = np.empty((msg.width,3))
+        for i, el in enumerate( pc2.read_points(msg, field_names = ("x", "y", "z"), skip_nans=True)):
+            self.pcd[i,:] = el
+
     def pose_callback(self, msg):
         self.pose = msg.pose
         if self.map_pose is None:
@@ -76,7 +87,7 @@ class SemanticMapping:
         euler = euler_from_quaternion(rot)
         
         # print "Position of the pose in the local map:"
-        print trans, rot, euler
+        # print trans, euler
         return T, trans, rot, euler
         
     def image_callback(self, msg):
@@ -91,7 +102,9 @@ class SemanticMapping:
 
     def mapping(self, im_src, pose):
         self.pose = pose
-        if self.require_new_map(pose):
+        flag = self.require_new_map(pose)
+        rospy.logdebug("%s", "True" if flag else "False")
+        if flag:
             self.map = self.transform_old_map( self.map_pose, pose)
             self.map_pose = pose
             self.set_map_pose(self.pose)
