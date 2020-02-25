@@ -56,4 +56,4 @@ Notice: this input topic is not published by vehicle, it is from vision_darknet_
 - [x] SemanticSegmentation class
 - [x] integration test with Autoware
 - [ ] record frequency and delay
-
+- [ ] semantic mapping
