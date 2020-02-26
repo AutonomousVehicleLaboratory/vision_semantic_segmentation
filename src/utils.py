@@ -214,6 +214,7 @@ def test_arg_max():
 
 # main
 def main():
+    pass
     # test_arg_max()
 
 if __name__ == "__main__":
