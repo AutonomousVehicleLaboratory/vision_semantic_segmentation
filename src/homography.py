@@ -19,10 +19,20 @@ from utils import dehomogenize
 
 # functions
 def generate_homography(im_src, pts_src, pts_dst, vis=False):
-    """ 
+    """ generate homography transformed image from point corrspondences
+
+    Params:
+        im_src: input image
+        pts_src: n by 2 array
+        pts_dst: n by 2 array
+    Return:
+        im_dst: transformed image
+    link:
     https://www.learnopencv.com/homography-examples-using-opencv-python-c/
     """
     # Calculate Homography
+    assert( len(pts_src[0]) == 2)
+    assert( len(pts_dst[0]) == 2)
     
     h, status = cv2.findHomography(pts_src, pts_dst)
 
