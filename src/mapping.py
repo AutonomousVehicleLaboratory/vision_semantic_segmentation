@@ -49,6 +49,7 @@ class SemanticMapping:
         self.map_height = int((boundary[1][1] - boundary[1][0]) / self.d)
         self.map_depth = 3
         self.map = None
+        self.map_value_max = 10 # prevent over confidence
         
         self.preprocessing()
 
@@ -124,7 +125,7 @@ class SemanticMapping:
         pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
         updated_map, normalized_map = self.update_map(self.map, pcd_in_range, pcd_label)
 
-        show_image_list([im_src, normalized_map], size=[400, 600])
+        show_image_list([im_src, normalized_map], delay=1, size=[400, 600])
         self.map = updated_map
     
 
@@ -229,13 +230,14 @@ class SemanticMapping:
             idx_mask = np.logical_and(idx, mask)
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 1
             print(i, ":", np.sum(map_local[:,:,i]))
+        map_local[map_local > self.map_value_max] = self.map_value_max
+        print("max:", np.max(map_local))
         normalized_map = self.normalize_map(map_local)
         return map_local, normalized_map
         
     def normalize_map(self, map_local):
         normalized_map = np.array(map_local)
-        mmin, mmax = np.min(normalized_map), np.max(normalized_map)
-        normalized_map = (normalized_map - mmin) * 255 / (mmax - mmin)
+        normalized_map = normalized_map * 255 / self.map_value_max
         normalized_map = normalized_map.astype(np.uint8)
         return normalized_map
 
