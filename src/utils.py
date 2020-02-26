@@ -141,6 +141,14 @@ def jacobian_vector_norm(v):
     J = 1. / np.linalg.norm(v) * v.T
     return J
 
+def right_null(A):
+    U, S, VT = np.linalg.svd(A)
+    if S[-1] < 1e-5:
+        return VT.T[:,-1::]
+    else:
+        print("right null space not exists")
+        return None
+
 # main
 def main():
     pass
