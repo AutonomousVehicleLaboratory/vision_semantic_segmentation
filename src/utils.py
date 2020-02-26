@@ -8,6 +8,7 @@ Date:February 12, 2020
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import pyplot as plt
+import cv2
 
 from plane_3d import Plane3D
 # from point_cloud import PointCloud
@@ -149,6 +150,47 @@ def right_null(A):
         print("right null space not exists")
         return None
 
+def show_image_list(image_list, delay=0, size=None):
+    if len(image_list) == 0:
+        return
+    elif len(image_list) == 1:
+        cv2.imshow("image", image_list[0])
+        cv2.waitKey(delay)
+    else:
+        reshaped_list = []
+        if size is None:
+            min_shape_y, min_shape_x = image_list[0].shape
+            for image in image_list:
+                if image.shape[0] < min_shape_y:
+                    min_shape_y = image.shape[0]
+                if image.shape[1] < min_shape_x:
+                    min_shape_x = image.shape[1]
+            for image in image_list:
+                if image.shape[0] != min_shape_y or image.shape[1] != min_shape_x:
+                    reshaped_image = cv2.resize(image, (min_shape_x, min_shape_y), interpolation=cv2.INTER_NEAREST)
+                    reshaped_list.append(reshaped_image)
+                else:
+                    reshaped_list.append(image)
+        else:
+            for image in image_list:
+                if image.shape[0] != size[0] or image.shape[1] != size[1]:
+                    reshaped_image = cv2.resize(image, (size[1], size[0]), interpolation=cv2.INTER_NEAREST)
+                    reshaped_list.append(reshaped_image)
+                else:
+                    reshaped_list.append(image)
+        
+        channel_fixed = []
+        for image in reshaped_list:
+            if len(image.shape) == 2:
+                fixed_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                channel_fixed.append(fixed_image)
+            else:
+                channel_fixed.append(image)
+
+        concatenated = np.concatenate(channel_fixed, axis=1)
+        cv2.imshow("concatenated", concatenated)
+        cv2.waitKey(delay)
+        
 # main
 def main():
     pass
