@@ -23,6 +23,7 @@ from sensor_msgs import point_cloud2 as pc2
 from camera import camera_setup_6
 from utils import homogenize, dehomogenize, show_image_list
 from utils_ros import set_map_pose, get_transformation, get_transform_from_pose
+from homography import generate_homography
 # parameters
 
 
@@ -33,7 +34,7 @@ class SemanticMapping:
         self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.image_callback)
 
-        self.tf_listener_ = TransformListener()
+        self.tf_listener = TransformListener()
         self.tfmr = Transformer()
         self.tf_ros = TransformerROS()
         self.bridge = CvBridge()
@@ -61,12 +62,18 @@ class SemanticMapping:
         """ setup constant matrices """
         self.T_velodyne_to_basklink = self.set_velodyne_to_baselink()
         self.T_cam_to_base = np.matmul(self.T_velodyne_to_basklink, self.cam6.T)
+        
         self.discretize_matrix_inv = np.array([
             [self.d, 0, self.map_boundary[0][0]],
             [0, -self.d, self.map_boundary[1][1]],
             [0, 0, 1]
         ]).astype(np.float)
         self.discretize_matrix = np.linalg.inv(self.discretize_matrix_inv)
+        
+        self.anchor_points = np.array([
+            [self.map_width, self.map_width / 3, self.map_width, self.map_width / 3],
+            [self.map_height/4, self.map_height/4, self.map_height * 3 / 4, self.map_height * 3 / 4]
+        ])
 
 
     def set_velodyne_to_baselink(self):
@@ -95,7 +102,7 @@ class SemanticMapping:
             set_map_pose(self.pose, '/world', '/local_map')
         else:
             set_map_pose(self.map_pose, '/world', '/local_map')
-            get_transformation(tf_listener=self.tf_listener_, tf_ros=self.tf_ros)
+            get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
 
         
     def image_callback(self, msg):
@@ -123,11 +130,10 @@ class SemanticMapping:
         # check if we need to move the local map
         if self.require_new_map(pose):
             pose_old = self.map_pose
-            rospy.logwarn("need deep copy here?")
-            self.map_pose = pose
-            set_map_pose(self.pose, '/world', '/local_map')
             map_new = self.create_new_local_map(pose)
             self.map = self.transform_old_map(map_new, self.map, pose_old, pose)
+            self.map_pose = pose
+            set_map_pose(self.pose, '/world', '/local_map')
 
         pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
         updated_map, normalized_map = self.update_map(self.map, pcd_in_range, pcd_label)
@@ -189,7 +195,7 @@ class SemanticMapping:
 
 
     def require_new_map(self, pose):
-        transform_matrix, trans, rot, euler = get_transformation(tf_listener=self.tf_listener_, tf_ros=self.tf_ros)
+        transform_matrix, trans, rot, euler = get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
         if trans is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2:
             flag = True
         else:
@@ -204,11 +210,43 @@ class SemanticMapping:
 
 
     def transform_old_map(self, map_new, map_old, pose_old, pose_new):
-        rospy.logwarn("Not transforming old map currently")
         if map_old is None:
             return map_new
         else:
-            return map_new
+            points_old_map = homogenize(np.array(self.anchor_points))
+            points_old_local = np.matmul(self.discretize_matrix_inv, points_old_map)
+            points_old_local[2,:] = 0
+            points_old_local = homogenize(points_old_local)
+
+            # compute transformation
+            T_old_map_to_world = get_transform_from_pose(pose_old)
+            T_new_map_to_world = get_transform_from_pose(pose_new)
+            T_old_map_to_new_map = np.matmul(T_old_map_to_world, np.linalg.inv(T_new_map_to_world))
+
+            mat, _, _, _ = get_transformation(frame_from='local_map', 
+                                              frame_to='base_link',
+                                              tf_listener=self.tf_listener,
+                                              tf_ros=self.tf_ros )
+            # print("old:", T_old_map_to_world[0:3,3])
+            # print("new:", T_new_map_to_world[0:3,3])
+            # print("tf:" , T_old_map_to_new_map[0:3,3])
+            if mat is not None:
+                # print("from tf:", mat[0:3,3])
+                T_old_map_to_new_map = mat
+
+
+            # compute new points
+            points_new_local = np.matmul(T_old_map_to_new_map, points_old_local)
+            points_new_local = points_new_local[0:2]
+            points_new_local = homogenize(points_new_local)
+            points_new_map = np.matmul(self.discretize_matrix, points_new_local)[0:2]
+
+            # generate homography
+            # print("old points:", points_old_map[0:2])
+            # print("new points:", points_new_map)
+            map_old_transformed = generate_homography(map_old, points_old_map[0:2].T, points_new_map.T, vis=False)
+            return map_old_transformed
+
 
 
     def update_map(self, map_local, pcd, label):
