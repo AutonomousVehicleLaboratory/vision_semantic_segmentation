@@ -191,9 +191,30 @@ def show_image_list(image_list, delay=0, size=None):
         cv2.imshow("concatenated", concatenated)
         cv2.waitKey(delay)
         
+def test_arg_max():
+    mat = np.array([
+        [
+            [1,2,3],
+            [3,2,1],
+            [2,3,1]
+        ],
+        [
+            [3,3,1],
+            [5,4,2],
+            [7,2,9]
+        ]
+    ])
+    print(mat.shape)
+    mat_argmax = np.argmax(mat, axis=2)
+    print(mat_argmax)
+    mat_new = np.zeros((2,3))
+    print(mat_new)
+    mat_new[mat_argmax == 0] = 77
+    print(mat_new)
+
 # main
 def main():
-    pass
+    # test_arg_max()
 
 if __name__ == "__main__":
     main()
