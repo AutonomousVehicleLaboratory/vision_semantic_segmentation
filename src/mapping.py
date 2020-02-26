@@ -11,18 +11,18 @@ import numpy as np
 import cv2
 
 import rospy
-from tf import Transformer, TransformListener, TransformBroadcaster, LookupException, ConnectivityException, ExtrapolationException, TransformerROS
+from tf import Transformer, TransformListener, TransformerROS
 from tf.transformations import quaternion_matrix, euler_from_quaternion, euler_matrix
-import tf_conversions
-from geometry_msgs.msg import PoseStamped, TransformStamped, Transform, Pose, Quaternion
+
+from geometry_msgs.msg import PoseStamped, Transform, Pose, Quaternion
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image, PointCloud2
 from sensor_msgs import point_cloud2 as pc2
 
 
 from camera import camera_setup_6
-from homography import generate_homography
-from utils import homogenize, dehomogenize
+from utils import homogenize, dehomogenize, show_image_list
+from utils_ros import set_map_pose, get_transformation, get_transform_from_pose
 # parameters
 
 
@@ -34,7 +34,6 @@ class SemanticMapping:
         self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.image_callback)
 
         self.tf_listener_ = TransformListener()
-        self.br = TransformBroadcaster()
         self.tfmr = Transformer()
         self.tf_ros = TransformerROS()
         
@@ -50,12 +49,15 @@ class SemanticMapping:
         self.map_height = int((boundary[1][1] - boundary[1][0]) / self.d)
         self.map_depth = 3
         self.map = None
+        
+        self.preprocessing()
+
+    def preprocessing(self):
         self.T_velodyne_to_basklink = self.set_velodyne_to_baselink()
         self.T_cam_to_base = np.matmul(self.T_velodyne_to_basklink, self.cam6.T)
-
         self.discretize_matrix_inv = np.array([
             [self.d, 0, 0],
-            [0, -self.d, boundary[1][1]/2],
+            [0, -self.d, self.boundary[1][1]/2],
             [0, 0, 1]
         ]).astype(np.float)
         self.discretize_matrix = np.linalg.inv(self.discretize_matrix_inv)
@@ -74,47 +76,18 @@ class SemanticMapping:
             self.pcd[:,i] = el
         self.pcd = homogenize(self.pcd)
 
+
     def pose_callback(self, msg):
         self.pose = msg.pose
-        # T, trans, rot, euler = self.get_transformation(frame_from='/velodyne', frame_to='/base_link')
+        # T, trans, rot, euler = get_transformation(frame_from='/velodyne', frame_to='/base_link')
         
         if self.map_pose is None:
             self.map_pose = self.pose
-            self.set_map_pose(self.pose)
+            set_map_pose(self.pose, '/world', '/local_map')
         else:
-            self.set_map_pose(self.map_pose)
-            self.get_transformation()
-            
+            set_map_pose(self.map_pose, '/world', '/local_map')
+            get_transformation(tf_listener=self.tf_listener_, tf_ros=self.tf_ros)
 
-    def set_map_pose(self, pose):
-        m = TransformStamped()
-        m.header.frame_id = "world"
-        m.header.stamp = rospy.Time.now()
-        m.child_frame_id = "local_map"
-        m.transform.translation.x = pose.position.x
-        m.transform.translation.y = pose.position.y
-        m.transform.translation.z = pose.position.z
-        m.transform.rotation.x = pose.orientation.x
-        m.transform.rotation.y = pose.orientation.y
-        m.transform.rotation.z = pose.orientation.z
-        m.transform.rotation.w = pose.orientation.w
-        self.br.sendTransformMessage(m)
-    
-    def get_transformation(self, frame_from='/base_link', frame_to='/local_map'):
-        try:
-            (trans, rot) = self.tf_listener_.lookupTransform(frame_to, frame_from, rospy.Time(0))
-        except (LookupException, ConnectivityException, ExtrapolationException):
-            rospy.logerr("exception, from %s to %s frame may not have setup!", frame_from, frame_to)
-            return None, None, None, None
-        # pose.pose.orientation.w = 1.0    # Neutral orientation
-        # tf_pose = self.tf_listener_.transformPose("/world", pose)
-        # R_local = quaternion_matrix(tf_pose.pose.orientation)
-        T = self.tf_ros.fromTranslationRotation(trans, rot)
-        euler = euler_from_quaternion(rot)
-        
-        # print "Position of the pose in the local map:"
-        # print trans, euler
-        return T, trans, rot, euler
         
     def image_callback(self, msg):
         try:
@@ -133,77 +106,30 @@ class SemanticMapping:
         # cv2.imshow("image_in", image_in)
         # cv2.waitKey(0)
         
+        ## =========== Mapping
         self.mapping(image_in, self.pose)
 
     def mapping(self, im_src, pose):
         self.pose = pose
 
+        # check if we need to move the local map
         if self.require_new_map(pose):
             pose_old = self.map_pose
             rospy.logwarn("need deep copy here?")
             self.map_pose = pose
-            self.set_map_pose(self.pose)
+            set_map_pose(self.pose, '/world', '/local_map')
             map_new = self.create_new_local_map(pose)
             self.map = self.transform_old_map(map_new, self.map, pose_old, pose)
 
-        """ Take in image, add semantic information to the local map """
         pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
         updated_map, normalized_map = self.update_map(self.map, pcd_in_range, pcd_label)
 
-        self.show_image_list([im_src, normalized_map], size=[400, 600])
+        show_image_list([im_src, normalized_map], size=[400, 600])
         self.map = updated_map
     
-    def show_image_list(self, image_list, delay=0, size=None):
-        if len(image_list) == 0:
-            return
-        elif len(image_list) == 1:
-            cv2.imshow("image", image_list[0])
-            cv2.waitKey(delay)
-        else:
-            reshaped_list = []
-            if size is None:
-                min_shape_y, min_shape_x = image_list[0].shape
-                for image in image_list:
-                    if image.shape[0] < min_shape_y:
-                        min_shape_y = image.shape[0]
-                    if image.shape[1] < min_shape_x:
-                        min_shape_x = image.shape[1]
-                for image in image_list:
-                    if image.shape[0] != min_shape_y or image.shape[1] != min_shape_x:
-                        reshaped_image = cv2.resize(image, (min_shape_x, min_shape_y), interpolation=cv2.INTER_NEAREST)
-                        reshaped_list.append(reshaped_image)
-                    else:
-                        reshaped_list.append(image)
-            else:
-                for image in image_list:
-                    if image.shape[0] != size[0] or image.shape[1] != size[1]:
-                        reshaped_image = cv2.resize(image, (size[1], size[0]), interpolation=cv2.INTER_NEAREST)
-                        reshaped_list.append(reshaped_image)
-                    else:
-                        reshaped_list.append(image)
-            
-            channel_fixed = []
-            for image in reshaped_list:
-                if len(image.shape) == 2:
-                    fixed_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                    channel_fixed.append(fixed_image)
-                else:
-                    channel_fixed.append(image)
-
-            concatenated = np.concatenate(channel_fixed, axis=1)
-            cv2.imshow("concatenated", concatenated)
-            cv2.waitKey(delay)
-
-    
-    def get_transform_from_pose(self, pose):
-        # from pose to origin (assumed 0,0,0)
-        translation = ( pose.position.x, pose.position.y, pose.position.z)
-        rotation = ( pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
-        T_base_to_origin = self.tf_ros.fromTranslationRotation(translation, rotation)
-        return T_base_to_origin
 
     def get_extrinsics(self, pose):
-        T_base_to_origin = self.get_transform_from_pose(pose)
+        T_base_to_origin = get_transform_from_pose(pose)
 
         # from camera to origin
         T_cam_to_origin = np.matmul(T_base_to_origin, self.T_cam_to_base)
@@ -234,14 +160,14 @@ class SemanticMapping:
         T_base_to_origin = self.tf_ros.fromTranslationRotation(translation, rotation)
 
         # from camera to origin
-        T_cam_to_origin = np.matmul(T_base_to_origin, self.T_cam_to_base)
-        T_origin_to_cam = np.linalg.inv(T_cam_to_origin)
-        P_norm = T_origin_to_cam[0:3]
+        # T_cam_to_origin = np.matmul(T_base_to_origin, self.T_cam_to_base)
+        # T_origin_to_cam = np.linalg.inv(T_cam_to_origin)
+        # P_norm = T_origin_to_cam[0:3]
 
-        T_origin_to_base = np.linalg.inv(T_base_to_origin)
+        # T_origin_to_base = np.linalg.inv(T_base_to_origin)
         T_origin_to_velodyne = np.linalg.inv(np.matmul(T_base_to_origin, self.T_velodyne_to_basklink))
-        pcd_base = np.matmul(T_origin_to_base, pcd)
-        pcd_cam = np.matmul(T_origin_to_cam, pcd)
+        # pcd_base = np.matmul(T_origin_to_base, pcd)
+        # pcd_cam = np.matmul(T_origin_to_cam, pcd)
         pcd_velody = np.matmul(T_origin_to_velodyne, pcd)
         IXY = dehomogenize( np.matmul(self.cam6.P, pcd_velody)).astype(np.int32)
         mask = np.logical_and( np.logical_and( 0 <= IXY[0,:], IXY[0,:] < image.shape[1]), 
@@ -264,7 +190,7 @@ class SemanticMapping:
         return masked_pcd, label
 
     def require_new_map(self, pose):
-        transform_matrix, trans, rot, euler = self.get_transformation()
+        transform_matrix, trans, rot, euler = get_transformation(tf_listener=self.tf_listener_, tf_ros=self.tf_ros)
         if trans is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2:
             flag = True
         else:
@@ -277,26 +203,18 @@ class SemanticMapping:
         return map_new
 
     def transform_old_map(self, map_new, map_old, pose_old, pose_new):
+        rospy.logwarn("Not transforming old map currently")
         if map_old is None:
             return map_new
         else:
             return map_new
-    
-    def transform_mask(self, im_src, pose):
-        """ retrive map mask from current image """
-        # prepare
 
-        im_dst = im_src
-        # transform
-        # homography approach might be not suitable for non planar approach
-        # im_dst = generate_homography(im_src, pts_src, pts_dst)
-        return im_dst
 
     def update_map(self, map_local, pcd, label):
         """ project the pcd on the map """
 
         normal = np.array([[0.0 ,0.0 ,1.0]]).T
-        T_local_to_world = self.get_transform_from_pose(self.map_pose)
+        T_local_to_world = get_transform_from_pose(self.map_pose)
         T_world_to_local = np.linalg.inv(T_local_to_world)
         pcd_local = np.matmul(T_world_to_local, pcd)[0:3,:]
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
@@ -320,25 +238,6 @@ class SemanticMapping:
         normalized_map = (normalized_map - mmin) * 255 / (mmax - mmin)
         normalized_map = normalized_map.astype(np.uint8)
         return normalized_map
-    
-    def get_normal_from_pose(self, map_pose):
-        """ from map_pose, compute the 2d map norm
-        https://answers.ros.org/question/222101/get-vector-representation-of-x-y-z-axis-from-geometry_msgs-pose/?answer=222179#post-id-222179
-        """
-        # p = Pose()
-        # p.orientation = map_pose.orientation
-        # z1 = (quaternion_matrix((p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w)))[0:3,2:3]
-        z = tf_conversions.fromMsg(map_pose).M.UnitZ()
-        normal = np.array([[z[0], z[1], z[2]]]).T
-        
-        return normal
-    
-    def update_log_odds(self, im_dst):
-        pass
-
-    def binarize(self, map_in):
-        return map_in
-# functions
 
 
 # main
