@@ -22,7 +22,10 @@ class Camera:
         self.K = K
         self.R = R
         self.t = t
-        self.P = np.matmul(K, np.concatenate([R, t], axis=1)) # camera projection matrix (world to image)
+        self.P_norm = np.concatenate([R, t], axis=1)
+        self.P = np.matmul(K, self.P_norm) # camera projection matrix (world to image)
+        self.T = np.vstack([self.P_norm, np.zeros((1, self.P_norm.shape[1]))])
+        self.T[-1,-1] = 1
         self.K_inv = np.linalg.inv(self.K)      # inverse of intrisic for convenience
         self.C_world_inhomo =np.matmul( - R.T , t)  # camera center in the world coordinate using inhomogeneous representation
         self.imSize = imSize                    # image size
