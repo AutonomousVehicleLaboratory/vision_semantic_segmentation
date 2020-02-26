@@ -49,13 +49,15 @@ class SemanticMapping:
         self.map_pose = None
         self.map_boundary = boundary
         self.d = discretization # discretization in meters
-        self.map_value_max = 10 # prevent over confidence
-        self.catogories = [128, 140, 255, 107] # values of labels in the iuput images of mapping
+        self.map_value_max = 10 # prevent over confidence (deprecated)
+        self.map_decay = 4 # prevent over confidence
+        self.catogories = [128, 140, 255, 107, 244] # values of labels in the iuput images of mapping
         self.catogories_color = np.array([
-            [128, 64, 128],
-            [140, 140, 200],
-            [255, 255, 255],
-            [107, 142, 35]
+            [128, 64, 128], # road
+            [140, 140, 200], # crosswalk
+            [255, 255, 255], # lane
+            [107, 142, 35], # vegetation
+            [244, 35, 232] # sizewalk
         ])
         self.map_width = int((boundary[0][1] - boundary[0][0]) / self.d)
         self.map_height = int((boundary[1][1] - boundary[1][0]) / self.d)
@@ -141,6 +143,7 @@ class SemanticMapping:
         # map is independent of camera
         self.pub_semantic_local_map.publish(image_pub)
         
+
     def mapping(self, im_src, pose):
         # check if we need to move the local map
         # tic = time.time()
@@ -156,7 +159,6 @@ class SemanticMapping:
         pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
         updated_map, color_map = self.update_map(self.map, pcd_in_range, pcd_label)
 
-        # show_image_list([normalized_map], delay=1, size=[500, 700])
         self.map = updated_map
         # toc2 = time.time()
         # rospy.loginfo("time: all %f s, transform map %f s", toc2 - tic, toc1 - tic)
@@ -217,7 +219,7 @@ class SemanticMapping:
 
     def require_new_map(self, pose):
         transform_matrix, trans, rot, euler = get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
-        if trans is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2:
+        if trans is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2 or np.linalg.norm(euler) > 0.1:
             flag = True
         else:
             flag = False
@@ -239,7 +241,7 @@ class SemanticMapping:
             points_old_local[2,:] = 0
             points_old_local = homogenize(points_old_local)
 
-            # compute transformation
+            # compute transformation (deprecated method, use tf istead for accuracy)
             T_old_map_to_world = get_transform_from_pose(pose_old)
             T_new_map_to_world = get_transform_from_pose(pose_new)
             T_old_map_to_new_map = np.matmul(T_old_map_to_world, np.linalg.inv(T_new_map_to_world))
@@ -255,7 +257,6 @@ class SemanticMapping:
                 # print("from tf:", mat[0:3,3])
                 T_old_map_to_new_map = mat
 
-
             # compute new points
             points_new_local = np.matmul(T_old_map_to_new_map, points_old_local)
             points_new_local = points_new_local[0:2]
@@ -266,8 +267,10 @@ class SemanticMapping:
             # print("old points:", points_old_map[0:2])
             # print("new points:", points_new_map)
             map_old_transformed = generate_homography(map_old, points_old_map[0:2].T, points_new_map.T, vis=False)
+            
+            # decay factor, make the map not as over confident
+            map_old_transformed = map_old_transformed / self.map_decay
             return map_old_transformed
-
 
 
     def update_map(self, map_local, pcd, label):
@@ -306,24 +309,16 @@ class SemanticMapping:
         normalized_map = normalized_map.astype(np.uint8)
         return normalized_map
 
+
     def color_map(self, map_local):
-        tic = time.time()
         color_map = np.zeros((self.map_height, self.map_width, 3)).astype(np.uint8)
-        idx_max_0 = np.logical_and( np.logical_and(map_local[:,:,0] > map_local[:,:,1], map_local[:,:,0] > map_local[:,:,2]),
-                                    map_local[:,:,0] > map_local[:,:,3])
-        idx_max_1 = np.logical_and( np.logical_and(map_local[:,:,1] > map_local[:,:,0], map_local[:,:,1] > map_local[:,:,2]),
-                                    map_local[:,:,1] > map_local[:,:,3])
-        idx_max_2 = np.logical_and( np.logical_and(map_local[:,:,2] > map_local[:,:,0], map_local[:,:,2] > map_local[:,:,1]),
-                                    map_local[:,:,2] > map_local[:,:,3])
-        idx_max_3 = np.logical_and( np.logical_and(map_local[:,:,3] > map_local[:,:,0], map_local[:,:,3] > map_local[:,:,1]),
-                                    map_local[:,:,3] > map_local[:,:,2])
-        color_map[idx_max_0] = self.catogories_color[0]
-        color_map[idx_max_1] = self.catogories_color[1]
-        color_map[idx_max_2] = self.catogories_color[2]
-        color_map[idx_max_3] = self.catogories_color[3]
-        toc = time.time()
-        print(toc-tic)
+        map_sum = np.sum(map_local, axis=2)
+        map_argmax = np.argmax(map_local, axis=2)
+        for i in range(len(self.catogories)):
+            color_map[map_argmax == i] = self.catogories_color[i]
+        color_map[map_sum == 0] = [0,0,0]
         return color_map
+
 
     def get_extrinsics(self, pose):
         T_base_to_origin = get_transform_from_pose(pose)
@@ -333,6 +328,7 @@ class SemanticMapping:
         T_origin_to_cam = np.linalg.inv(T_cam_to_origin)
         extrinsics = T_origin_to_cam[0:3]
         return extrinsics
+
 
 # main
 def main():
