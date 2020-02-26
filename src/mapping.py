@@ -13,10 +13,12 @@ import cv2
 import rospy
 from tf import Transformer, TransformListener, TransformBroadcaster, LookupException, ConnectivityException, ExtrapolationException, TransformerROS
 from tf.transformations import quaternion_matrix, euler_from_quaternion, euler_matrix
-from geometry_msgs.msg import PoseStamped, TransformStamped, Transform
+import tf_conversions
+from geometry_msgs.msg import PoseStamped, TransformStamped, Transform, Pose, Quaternion
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image, PointCloud2
 from sensor_msgs import point_cloud2 as pc2
+
 
 from camera import camera_setup_6
 from homography import generate_homography
@@ -35,7 +37,6 @@ class SemanticMapping:
         self.br = TransformBroadcaster()
         self.tfmr = Transformer()
         self.tf_ros = TransformerROS()
-
         
         self.map_pose = None
         self.pose = None
@@ -51,6 +52,13 @@ class SemanticMapping:
         self.map = None
         self.T_velodyne_to_basklink = self.set_velodyne_to_baselink()
         self.T_cam_to_base = np.matmul(self.T_velodyne_to_basklink, self.cam6.T)
+
+        self.discretize_matrix_inv = np.array([
+            [self.d, 0, 0],
+            [0, self.d, 0],
+            [0, 0, 1]
+        ]).astype(np.float)
+        self.discretize_matrix = np.linalg.inv(self.discretize_matrix_inv)
 
     def set_velodyne_to_baselink(self):
         T = euler_matrix(0., 0.157, 0.)
@@ -130,16 +138,19 @@ class SemanticMapping:
             self.map = self.transform_old_map(map_new, self.map, pose_old, pose)
 
         """ Take in image, add semantic information to the local map """
-        pcd_label = self.project_pcd(self.pcd, im_src, pose)
-        im_dst = self.transform_mask(im_src, pose)
-        updated_map = self.update_map(im_dst)
+        pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
+        updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
         self.map = updated_map
     
-    def get_extrinsics(self, pose):
-        # from base_link to origin (assumed 0,0,0)
+    def get_T_from_pose(self, pose):
+        # from pose to origin (assumed 0,0,0)
         translation = ( pose.position.x, pose.position.y, pose.position.z)
         rotation = ( pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
         T_base_to_origin = self.tf_ros.fromTranslationRotation(translation, rotation)
+        return T_base_to_origin
+
+    def get_extrinsics(self, pose):
+        T_base_to_origin = self.get_T_from_pose(pose)
 
         # from camera to origin
         T_cam_to_origin = np.matmul(T_base_to_origin, self.T_cam_to_base)
@@ -190,8 +201,13 @@ class SemanticMapping:
         #                        np.logical_and( 0 <= Ixy[1,:], Ixy[1,:] < image.shape[0]))
         masked_pcd = pcd[:,mask]
         image_idx = IXY[:,mask]
-        image[image_idx[1,:],image_idx[0,:], :] = [255,0,0]
-        label = image[image_idx[1,:],image_idx[0,:], :]
+        # image[image_idx[1,:],image_idx[0,:], :] = [255,0,0]
+        label = image[image_idx[1,:],image_idx[0,:], :].T
+        # image_new = np.zeros(image.shape)
+        # image_new[image_idx[1,:], image_idx[0,:],:] = label.T
+        # cv2.imshow("color_points", image_new.astype(np.uint8))
+        # cv2.waitKey(0)
+        
         return masked_pcd, label
 
     def require_new_map(self, pose):
@@ -223,9 +239,37 @@ class SemanticMapping:
         # im_dst = generate_homography(im_src, pts_src, pts_dst)
         return im_dst
 
-    def update_map(self, im_dst):
-        log_odds_map = self.update_log_odds(im_dst)
-        return log_odds_map
+    def update_map(self, map_local, pcd, label):
+        """ project the pcd on the map """
+        normal = self.get_normal_from_pose(self.map_pose)
+        T_local_to_world = self.get_normal_from_pose(self.map_pose)
+        T_world_to_local = np.linalg.inv(T_local_to_world)
+        pcd_local = np.matmul(T_world_to_local, pcd)
+        pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal, pcd_local))
+
+        # discretize
+        pcd_pixel = np.matmul(self.discretize_matrix, homogenize(pcd_on_map[0:2,:])).astype(np.int32)
+        mask = np.logical_and( np.logical_and(0 <= pcd_pixel[0,:], pcd_pixel[0,:] < self.map_width ),
+                               np.logical_and(0 <= pcd_pixel[1,:], pcd_pixel[1,:] < self.map_height ))
+        catogories = [0,1,2]
+        for i in catogories:
+            idx = label[0,:] == catogories[i]
+            idx_mask = np.logical_and(idx, mask)
+            map_local[pcd_pixel[0, idx_mask], pcd_pixel[1, idx_mask], i] += 1
+        return map_local
+        
+
+    
+    def get_normal_from_pose(self, map_pose):
+        """ from map_pose, compute the 2d map norm
+        https://answers.ros.org/question/222101/get-vector-representation-of-x-y-z-axis-from-geometry_msgs-pose/?answer=222179#post-id-222179
+        """
+        # p = Pose()
+        # p.orientation = map_pose.orientation
+        # z1 = (quaternion_matrix((p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w)))[0:3,2:3]
+        z = tf_conversions.fromMsg(map_pose).M.UnitZ()
+        
+        return z
     
     def update_log_odds(self, im_dst):
         pass
