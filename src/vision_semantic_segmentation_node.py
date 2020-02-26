@@ -91,8 +91,8 @@ class VisionSemanticSegmentationNode:
         image_out_resized = image_out_resized.astype(np.uint8)
 
         ## ========== semantic extraction
-        self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id, index_care_about=2) # cross walk
-        self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id, index_care_about=1) # road
+        # self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id, index_care_about=2) # cross walk
+        # self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id, index_care_about=1) # road
         
         # NOTE: we use INTER_NEAREST because values are discrete labels
         image_out = cv2.resize(image_out_resized, (image_in.shape[1], image_in.shape[0]),
