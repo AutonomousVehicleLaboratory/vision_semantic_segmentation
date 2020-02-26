@@ -118,19 +118,7 @@ class SemanticMapping:
         try:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
-            print(e)
-        
-        ## ========== Image preprocessing
-        # image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
-        
-        # 
-        # image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2GRAY)
-        
-        # ret, image_in = cv2.threshold(image_in,127,255,cv2.THRESH_BINARY)
-        # image_in = cv2.adaptiveThreshold(image_in, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
-        #    cv2.THRESH_BINARY,11,2)
-        # cv2.imshow("image_in", im_src)
-        # cv2.waitKey(1)         
+            print(e)   
         
         ## =========== Mapping
         color_map = self.mapping(image_in, self.pose)
@@ -145,9 +133,7 @@ class SemanticMapping:
         
 
     def mapping(self, im_src, pose):
-        # check if we need to move the local map
         # tic = time.time()
-        
         if self.require_new_map(pose):
             pose_old = self.map_pose
             map_new = self.create_new_local_map(pose)
@@ -155,13 +141,12 @@ class SemanticMapping:
             self.map_pose = pose
             set_map_pose(self.pose, '/world', '/local_map')
         
-        # toc1 = time.time()
         pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
         updated_map, color_map = self.update_map(self.map, pcd_in_range, pcd_label)
 
         self.map = updated_map
         # toc2 = time.time()
-        # rospy.loginfo("time: all %f s, transform map %f s", toc2 - tic, toc1 - tic)
+        # rospy.loginfo("time: %f s", toc2 - tic)
         return color_map
     
 
@@ -177,42 +162,21 @@ class SemanticMapping:
             return
         if pcd.shape[0] == 3:
             pcd = homogenize(pcd)
-        # shuffle = np.random.permutation(pcd.shape[1])[0:30]
-        # pcd = pcd[:,shuffle]
+
         pcd = pcd[:,pcd[0,:]!=0]
         
-        # from base_link to origin (assumed 0,0,0)
-        translation = ( pose.position.x, pose.position.y, pose.position.z)
-        rotation = ( pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
-        T_base_to_origin = self.tf_ros.fromTranslationRotation(translation, rotation)
-
-        # from camera to origin
-        # T_cam_to_origin = np.matmul(T_base_to_origin, self.T_cam_to_base)
-        # T_origin_to_cam = np.linalg.inv(T_cam_to_origin)
-        # P_norm = T_origin_to_cam[0:3]
-
-        # T_origin_to_base = np.linalg.inv(T_base_to_origin)
+        T_base_to_origin = get_transform_from_pose(pose)
         T_origin_to_velodyne = np.linalg.inv(np.matmul(T_base_to_origin, self.T_velodyne_to_basklink))
-        # pcd_base = np.matmul(T_origin_to_base, pcd)
-        # pcd_cam = np.matmul(T_origin_to_cam, pcd)
+
         pcd_velody = np.matmul(T_origin_to_velodyne, pcd)
+
         IXY = dehomogenize( np.matmul(self.cam6.P, pcd_velody)).astype(np.int32)
         mask = np.logical_and( np.logical_and( 0 <= IXY[0,:], IXY[0,:] < image.shape[1]), 
                                np.logical_and( 0 <= IXY[1,:], IXY[1,:] < image.shape[0]))
 
-        # not sure why this is incorrect
-        # P = np.matmul(self.cam6.K, P_norm)
-        # Ixy = dehomogenize(np.matmul(P, pcd))
-        # mask1 = np.logical_and( np.logical_and( 0 <= Ixy[0,:], Ixy[0,:] < image.shape[1]), 
-        #                        np.logical_and( 0 <= Ixy[1,:], Ixy[1,:] < image.shape[0]))
         masked_pcd = pcd[:,mask]
         image_idx = IXY[:,mask]
-        # image[image_idx[1,:],image_idx[0,:], :] = [255,0,0]
         label = image[image_idx[1,:],image_idx[0,:]].T
-        # image_new = np.zeros(image.shape)
-        # image_new[image_idx[1,:], image_idx[0,:],:] = label.T
-        # cv2.imshow("color_points", image_new.astype(np.uint8))
-        # cv2.waitKey(0)
         
         return masked_pcd, label
 
@@ -250,11 +214,8 @@ class SemanticMapping:
                                               frame_to='base_link',
                                               tf_listener=self.tf_listener,
                                               tf_ros=self.tf_ros )
-            # print("old:", T_old_map_to_world[0:3,3])
-            # print("new:", T_new_map_to_world[0:3,3])
-            # print("tf:" , T_old_map_to_new_map[0:3,3])
+
             if mat is not None:
-                # print("from tf:", mat[0:3,3])
                 T_old_map_to_new_map = mat
 
             # compute new points
@@ -264,8 +225,6 @@ class SemanticMapping:
             points_new_map = np.matmul(self.discretize_matrix, points_new_local)[0:2]
 
             # generate homography
-            # print("old points:", points_old_map[0:2])
-            # print("new points:", points_new_map)
             map_old_transformed = generate_homography(map_old, points_old_map[0:2].T, points_new_map.T, vis=False)
             
             # decay factor, make the map not as over confident
@@ -292,10 +251,11 @@ class SemanticMapping:
             idx = label[0,:] == self.catogories[i]
             idx_mask = np.logical_and(idx, mask)
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 1
-            # print(i, ":", np.sum(map_local[:,:,i]))
         
-        # threshold and normalize map
+        # generate color map
         color_map = self.color_map(map_local)
+
+        # threshold and normalize
         # map_local[map_local > self.map_value_max] = self.map_value_max
         # print("max:", np.max(map_local))
         # normalized_map = self.normalize_map(map_local)
@@ -311,12 +271,17 @@ class SemanticMapping:
 
 
     def color_map(self, map_local):
+        """ color the map by which label has max number of points """
         color_map = np.zeros((self.map_height, self.map_width, 3)).astype(np.uint8)
-        map_sum = np.sum(map_local, axis=2)
+        
+        map_sum = np.sum(map_local, axis=2) # get all zero mask
         map_argmax = np.argmax(map_local, axis=2)
+        
         for i in range(len(self.catogories)):
             color_map[map_argmax == i] = self.catogories_color[i]
-        color_map[map_sum == 0] = [0,0,0]
+        
+        color_map[map_sum == 0] = [0,0,0] # recover all zero positions
+        
         return color_map
 
 
