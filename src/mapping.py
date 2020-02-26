@@ -268,11 +268,11 @@ class SemanticMapping:
             idx = label[:] == self.catogories[i]
             idx_mask = np.logical_and(idx, mask)
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 1
-            print(i, ":", np.sum(map_local[:,:,i]))
+            # print(i, ":", np.sum(map_local[:,:,i]))
         
         # threshold and normalize map
         map_local[map_local > self.map_value_max] = self.map_value_max
-        print("max:", np.max(map_local))
+        # print("max:", np.max(map_local))
         normalized_map = self.normalize_map(map_local)
 
         return map_local, normalized_map
