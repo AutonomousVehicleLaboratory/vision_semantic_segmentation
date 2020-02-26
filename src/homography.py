@@ -33,7 +33,7 @@ def generate_homography(im_src, pts_src, pts_dst, vis=False):
     # Calculate Homography
     assert( len(pts_src[0]) == 2)
     assert( len(pts_dst[0]) == 2)
-    
+
     h, status = cv2.findHomography(pts_src, pts_dst)
 
     # Calculate shape

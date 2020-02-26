@@ -24,15 +24,17 @@ from camera import camera_setup_6
 from utils import homogenize, dehomogenize, show_image_list
 from utils_ros import set_map_pose, get_transformation, get_transform_from_pose
 from homography import generate_homography
+import time
 # parameters
 
 
 # classes
 class SemanticMapping:
-    def __init__(self, discretization = 0.1, boundary = [[10, 50], [-10, 10]]):
+    def __init__(self, discretization = 0.1, boundary = [[0, 50], [-10, 10]]):
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
         self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
-        self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.image_callback)
+        self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
+        self.pub_semantic_local_map = rospy.Publisher("/semantic_local_map", Image)
 
         self.tf_listener = TransformListener()
         self.tfmr = Transformer()
@@ -47,12 +49,17 @@ class SemanticMapping:
         self.map_pose = None
         self.map_boundary = boundary
         self.d = discretization # discretization in meters
+        self.map_value_max = 10 # prevent over confidence
+        self.catogories = [128, 140, 255, 107] # values of labels in the iuput images of mapping
+        self.catogories_color = np.array([
+            [128, 64, 128],
+            [140, 140, 200],
+            [255, 255, 255],
+            [107, 142, 35]
+        ])
         self.map_width = int((boundary[0][1] - boundary[0][0]) / self.d)
         self.map_height = int((boundary[1][1] - boundary[1][0]) / self.d)
-        self.map_depth = 3
-        self.map_value_max = 10 # prevent over confidence
-        
-        self.catogories = [0, 255] # values of labels in the iuput images of mapping
+        self.map_depth = len(self.catogories)
         # self.catogories = [1, 2] # 1 for crosswalk, 2 for road
         
         self.preprocessing()
@@ -113,33 +120,47 @@ class SemanticMapping:
         
         ## ========== Image preprocessing
         # image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
-        image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2GRAY)
         
-        ret, image_in = cv2.threshold(image_in,127,255,cv2.THRESH_BINARY)
+        # 
+        # image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2GRAY)
+        
+        # ret, image_in = cv2.threshold(image_in,127,255,cv2.THRESH_BINARY)
         # image_in = cv2.adaptiveThreshold(image_in, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
         #    cv2.THRESH_BINARY,11,2)
-        
-        # cv2.imshow("image_in", image_in)
-        # cv2.waitKey(0)
+        # cv2.imshow("image_in", im_src)
+        # cv2.waitKey(1)         
         
         ## =========== Mapping
-        self.mapping(image_in, self.pose)
+        color_map = self.mapping(image_in, self.pose)
 
-
+        try:
+            image_pub = self.bridge.cv2_to_imgmsg(color_map, encoding="passthrough")
+        except CvBridgeError as e:
+            print(e)
+        
+        # map is independent of camera
+        self.pub_semantic_local_map.publish(image_pub)
+        
     def mapping(self, im_src, pose):
         # check if we need to move the local map
+        # tic = time.time()
+        
         if self.require_new_map(pose):
             pose_old = self.map_pose
             map_new = self.create_new_local_map(pose)
             self.map = self.transform_old_map(map_new, self.map, pose_old, pose)
             self.map_pose = pose
             set_map_pose(self.pose, '/world', '/local_map')
-
+        
+        # toc1 = time.time()
         pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
-        updated_map, normalized_map = self.update_map(self.map, pcd_in_range, pcd_label)
+        updated_map, color_map = self.update_map(self.map, pcd_in_range, pcd_label)
 
-        show_image_list([im_src, normalized_map], delay=1, size=[500, 700])
+        # show_image_list([normalized_map], delay=1, size=[500, 700])
         self.map = updated_map
+        # toc2 = time.time()
+        # rospy.loginfo("time: all %f s, transform map %f s", toc2 - tic, toc1 - tic)
+        return color_map
     
 
     def project_pcd(self, pcd, image, pose):
@@ -265,17 +286,18 @@ class SemanticMapping:
         
         # update corresponding labels
         for i in range(len(self.catogories)):
-            idx = label[:] == self.catogories[i]
+            idx = label[0,:] == self.catogories[i]
             idx_mask = np.logical_and(idx, mask)
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 1
             # print(i, ":", np.sum(map_local[:,:,i]))
         
         # threshold and normalize map
-        map_local[map_local > self.map_value_max] = self.map_value_max
+        color_map = self.color_map(map_local)
+        # map_local[map_local > self.map_value_max] = self.map_value_max
         # print("max:", np.max(map_local))
-        normalized_map = self.normalize_map(map_local)
+        # normalized_map = self.normalize_map(map_local)
 
-        return map_local, normalized_map
+        return map_local, color_map
 
 
     def normalize_map(self, map_local):
@@ -284,6 +306,24 @@ class SemanticMapping:
         normalized_map = normalized_map.astype(np.uint8)
         return normalized_map
 
+    def color_map(self, map_local):
+        tic = time.time()
+        color_map = np.zeros((self.map_height, self.map_width, 3)).astype(np.uint8)
+        idx_max_0 = np.logical_and( np.logical_and(map_local[:,:,0] > map_local[:,:,1], map_local[:,:,0] > map_local[:,:,2]),
+                                    map_local[:,:,0] > map_local[:,:,3])
+        idx_max_1 = np.logical_and( np.logical_and(map_local[:,:,1] > map_local[:,:,0], map_local[:,:,1] > map_local[:,:,2]),
+                                    map_local[:,:,1] > map_local[:,:,3])
+        idx_max_2 = np.logical_and( np.logical_and(map_local[:,:,2] > map_local[:,:,0], map_local[:,:,2] > map_local[:,:,1]),
+                                    map_local[:,:,2] > map_local[:,:,3])
+        idx_max_3 = np.logical_and( np.logical_and(map_local[:,:,3] > map_local[:,:,0], map_local[:,:,3] > map_local[:,:,1]),
+                                    map_local[:,:,3] > map_local[:,:,2])
+        color_map[idx_max_0] = self.catogories_color[0]
+        color_map[idx_max_1] = self.catogories_color[1]
+        color_map[idx_max_2] = self.catogories_color[2]
+        color_map[idx_max_3] = self.catogories_color[3]
+        toc = time.time()
+        print(toc-tic)
+        return color_map
 
     def get_extrinsics(self, pose):
         T_base_to_origin = get_transform_from_pose(pose)

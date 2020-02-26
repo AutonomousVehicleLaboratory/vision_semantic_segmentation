@@ -2,6 +2,7 @@
 
     <node pkg="vision_semantic_segmentation" type="mapping.py" name="semantic_mapping" output="screen" />
     <node pkg="map_reduction" type="map_reduction" name="map_reduction" output="screen" />
+    <node pkg="vision_semantic_segmentation" type="vision_semantic_segmentation_node.py" name="vision_semantic_segmentation_node" output="screen" />
     
     <arg name="camera_left_id" default="camera1"/>
     <arg name="camera_right_id" default="camera6"/>
