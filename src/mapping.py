@@ -55,7 +55,7 @@ class SemanticMapping:
 
         self.discretize_matrix_inv = np.array([
             [self.d, 0, 0],
-            [0, self.d, 0],
+            [0, -self.d, boundary[1][1]/2],
             [0, 0, 1]
         ]).astype(np.float)
         self.discretize_matrix = np.linalg.inv(self.discretize_matrix_inv)
@@ -123,7 +123,16 @@ class SemanticMapping:
             print(e)
         
         ## ========== Image preprocessing
-        image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
+        # image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
+        image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2GRAY)
+        
+        ret, image_in = cv2.threshold(image_in,127,255,cv2.THRESH_BINARY)
+        # image_in = cv2.adaptiveThreshold(image_in, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+        #    cv2.THRESH_BINARY,11,2)
+        
+        # cv2.imshow("image_in", image_in)
+        # cv2.waitKey(0)
+        
         self.mapping(image_in, self.pose)
 
     def mapping(self, im_src, pose):
@@ -139,10 +148,54 @@ class SemanticMapping:
 
         """ Take in image, add semantic information to the local map """
         pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
-        updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
+        updated_map, normalized_map = self.update_map(self.map, pcd_in_range, pcd_label)
+
+        self.show_image_list([im_src, normalized_map], size=[400, 600])
         self.map = updated_map
     
-    def get_T_from_pose(self, pose):
+    def show_image_list(self, image_list, delay=0, size=None):
+        if len(image_list) == 0:
+            return
+        elif len(image_list) == 1:
+            cv2.imshow("image", image_list[0])
+            cv2.waitKey(delay)
+        else:
+            reshaped_list = []
+            if size is None:
+                min_shape_y, min_shape_x = image_list[0].shape
+                for image in image_list:
+                    if image.shape[0] < min_shape_y:
+                        min_shape_y = image.shape[0]
+                    if image.shape[1] < min_shape_x:
+                        min_shape_x = image.shape[1]
+                for image in image_list:
+                    if image.shape[0] != min_shape_y or image.shape[1] != min_shape_x:
+                        reshaped_image = cv2.resize(image, (min_shape_x, min_shape_y), interpolation=cv2.INTER_NEAREST)
+                        reshaped_list.append(reshaped_image)
+                    else:
+                        reshaped_list.append(image)
+            else:
+                for image in image_list:
+                    if image.shape[0] != size[0] or image.shape[1] != size[1]:
+                        reshaped_image = cv2.resize(image, (size[1], size[0]), interpolation=cv2.INTER_NEAREST)
+                        reshaped_list.append(reshaped_image)
+                    else:
+                        reshaped_list.append(image)
+            
+            channel_fixed = []
+            for image in reshaped_list:
+                if len(image.shape) == 2:
+                    fixed_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                    channel_fixed.append(fixed_image)
+                else:
+                    channel_fixed.append(image)
+
+            concatenated = np.concatenate(channel_fixed, axis=1)
+            cv2.imshow("concatenated", concatenated)
+            cv2.waitKey(delay)
+
+    
+    def get_transform_from_pose(self, pose):
         # from pose to origin (assumed 0,0,0)
         translation = ( pose.position.x, pose.position.y, pose.position.z)
         rotation = ( pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
@@ -150,7 +203,7 @@ class SemanticMapping:
         return T_base_to_origin
 
     def get_extrinsics(self, pose):
-        T_base_to_origin = self.get_T_from_pose(pose)
+        T_base_to_origin = self.get_transform_from_pose(pose)
 
         # from camera to origin
         T_cam_to_origin = np.matmul(T_base_to_origin, self.T_cam_to_base)
@@ -202,7 +255,7 @@ class SemanticMapping:
         masked_pcd = pcd[:,mask]
         image_idx = IXY[:,mask]
         # image[image_idx[1,:],image_idx[0,:], :] = [255,0,0]
-        label = image[image_idx[1,:],image_idx[0,:], :].T
+        label = image[image_idx[1,:],image_idx[0,:]].T
         # image_new = np.zeros(image.shape)
         # image_new[image_idx[1,:], image_idx[0,:],:] = label.T
         # cv2.imshow("color_points", image_new.astype(np.uint8))
@@ -220,7 +273,7 @@ class SemanticMapping:
         return flag
 
     def create_new_local_map(self, pose):
-        map_new = np.zeros((self.map_height , self.map_depth, self.map_depth))
+        map_new = np.zeros((self.map_height , self.map_width, self.map_depth))
         return map_new
 
     def transform_old_map(self, map_new, map_old, pose_old, pose_new):
@@ -241,24 +294,32 @@ class SemanticMapping:
 
     def update_map(self, map_local, pcd, label):
         """ project the pcd on the map """
-        normal = self.get_normal_from_pose(self.map_pose)
-        T_local_to_world = self.get_normal_from_pose(self.map_pose)
+
+        normal = np.array([[0.0 ,0.0 ,1.0]]).T
+        T_local_to_world = self.get_transform_from_pose(self.map_pose)
         T_world_to_local = np.linalg.inv(T_local_to_world)
-        pcd_local = np.matmul(T_world_to_local, pcd)
-        pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal, pcd_local))
+        pcd_local = np.matmul(T_world_to_local, pcd)[0:3,:]
+        pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
 
         # discretize
         pcd_pixel = np.matmul(self.discretize_matrix, homogenize(pcd_on_map[0:2,:])).astype(np.int32)
         mask = np.logical_and( np.logical_and(0 <= pcd_pixel[0,:], pcd_pixel[0,:] < self.map_width ),
                                np.logical_and(0 <= pcd_pixel[1,:], pcd_pixel[1,:] < self.map_height ))
-        catogories = [0,1,2]
-        for i in catogories:
-            idx = label[0,:] == catogories[i]
+        catogories = [0,255]
+        for i in range(len(catogories)):
+            idx = label[:] == catogories[i]
             idx_mask = np.logical_and(idx, mask)
-            map_local[pcd_pixel[0, idx_mask], pcd_pixel[1, idx_mask], i] += 1
-        return map_local
+            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 1
+            print(i, ":", np.sum(map_local[:,:,i]))
+        normalized_map = self.normalize_map(map_local)
+        return map_local, normalized_map
         
-
+    def normalize_map(self, map_local):
+        normalized_map = np.array(map_local)
+        mmin, mmax = np.min(normalized_map), np.max(normalized_map)
+        normalized_map = (normalized_map - mmin) * 255 / (mmax - mmin)
+        normalized_map = normalized_map.astype(np.uint8)
+        return normalized_map
     
     def get_normal_from_pose(self, map_pose):
         """ from map_pose, compute the 2d map norm
@@ -268,8 +329,9 @@ class SemanticMapping:
         # p.orientation = map_pose.orientation
         # z1 = (quaternion_matrix((p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w)))[0:3,2:3]
         z = tf_conversions.fromMsg(map_pose).M.UnitZ()
+        normal = np.array([[z[0], z[1], z[2]]]).T
         
-        return z
+        return normal
     
     def update_log_odds(self, im_dst):
         pass
