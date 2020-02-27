@@ -7,11 +7,16 @@ Date:February 26, 2020
 # module
 import rospy
 import numpy as np
+import struct
 
 from tf import TransformBroadcaster, TransformListener, TransformerROS, LookupException, ConnectivityException, ExtrapolationException
 from tf.transformations import quaternion_matrix, euler_from_quaternion, euler_matrix
 import tf_conversions
 from geometry_msgs.msg import TransformStamped
+from sensor_msgs import point_cloud2
+from sensor_msgs.msg import PointCloud2, PointField
+from std_msgs.msg import Header
+
 # parameters
 
 
@@ -19,6 +24,41 @@ from geometry_msgs.msg import TransformStamped
 
 
 # functions
+
+pub = rospy.Publisher("point_cloud2", PointCloud2, queue_size=2)
+
+
+def create_point_cloud(xyz, rgb=None, frame_id='world'):
+    """ prepare point cloud 
+
+    Params:
+        xyz: n by 3 float numbers
+        rgb: n by 4 array
+    return:
+        point_cloud_msg
+    """
+    header = Header()
+    header.frame_id = frame_id
+    if rgb is None:
+        points = xyz.tolist()
+        fields = [PointField('x', 0, PointField.FLOAT32, 1),
+                  PointField('y', 4, PointField.FLOAT32, 1),
+                  PointField('z', 8, PointField.FLOAT32, 1)
+                  ]
+    else:
+        points = xyz.tolist()
+        for i in range(xyz.shape[0]):
+            rgba_i = struct.unpack('I', struct.Struct('BBBB').pack(int(rgb[i,0]), int(rgb[i,1]), int(rgb[i,2]), 255))[0]
+            points[i].append(rgba_i)
+        fields = [PointField('x', 0, PointField.FLOAT32, 1),
+                  PointField('y', 4, PointField.FLOAT32, 1),
+                  PointField('z', 8, PointField.FLOAT32, 1),
+                  PointField('rgba', 12, PointField.UINT32, 1)
+                  ]
+    pc2 = point_cloud2.create_cloud(header, fields, points)
+    return pc2
+
+
 def set_map_pose(pose, parent_frame_id, child_frame_id):
     br = TransformBroadcaster()
     m = TransformStamped()

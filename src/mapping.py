@@ -22,7 +22,7 @@ from sensor_msgs import point_cloud2 as pc2
 
 from camera import camera_setup_6
 from utils import homogenize, dehomogenize, get_rotation_from_angle_2d
-from utils_ros import set_map_pose, get_transformation, get_transform_from_pose
+from utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
 from homography import generate_homography
 import time
 # parameters
@@ -36,6 +36,7 @@ class SemanticMapping:
         self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
 
         self.pub_semantic_local_map = rospy.Publisher("/semantic_local_map", Image, queue_size=5)
+        self.pub_pcd = rospy.Publisher("/semantic_point_cloud", PointCloud2, queue_size=5)
 
         self.tf_listener = TransformListener()
         self.tfmr = Transformer()
@@ -158,6 +159,10 @@ class SemanticMapping:
         self.map = updated_map
         # toc2 = time.time()
         # rospy.loginfo("time: %f s", toc2 - tic)
+
+        pcd_pub = create_point_cloud(dehomogenize(pcd_in_range).T, pcd_label.T, frame_id='world')
+        self.pub_pcd.publish(pcd_pub)
+
         return color_map
     
 
@@ -180,13 +185,12 @@ class SemanticMapping:
         T_origin_to_velodyne = np.linalg.inv(np.matmul(T_base_to_origin, self.T_velodyne_to_basklink))
 
         pcd_velody = np.matmul(T_origin_to_velodyne, pcd)
+        IXY = dehomogenize( np.matmul(self.cam6.P, pcd_velody)).astype(np.int32)
 
         mask_positive = pcd_velody[0, :] > 0
-
-        IXY = dehomogenize( np.matmul(self.cam6.P, pcd_velody)).astype(np.int32)
         mask = np.logical_and( np.logical_and( 0 <= IXY[0,:], IXY[0,:] < image.shape[1]), 
                                np.logical_and( 0 <= IXY[1,:], IXY[1,:] < image.shape[0]))
-        mask = np.logical_and(mask, mask_positive)
+        mask = np.logical_and(mask, mask_positive) # enforce only use points in the front
 
         masked_pcd = pcd[:,mask]
         image_idx = IXY[:,mask]
