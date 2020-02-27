@@ -30,11 +30,12 @@ import time
 
 # classes
 class SemanticMapping:
-    def __init__(self, discretization = 0.1, boundary = [[0, 50], [-10, 10]]):
+    def __init__(self, discretization = 0.1, boundary = [[-20, 50], [-10, 10]]):
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
         self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
-        self.pub_semantic_local_map = rospy.Publisher("/semantic_local_map", Image)
+
+        self.pub_semantic_local_map = rospy.Publisher("/semantic_local_map", Image, queue_size=5)
 
         self.tf_listener = TransformListener()
         self.tfmr = Transformer()
@@ -43,6 +44,8 @@ class SemanticMapping:
         
         self.pose = None
         self.cam6 = camera_setup_6()
+        rospy.logwarn("currently only setup for camera6")
+        rospy.logwarn("currently only for front view")
         self.pcd = None
         
         self.map = None
@@ -123,6 +126,8 @@ class SemanticMapping:
             print(e)   
         
         ## =========== Mapping
+        if self.pcd is None or self.map_pose is None:
+            return
         color_map = self.mapping(image_in, self.pose)
 
         try:
@@ -176,9 +181,12 @@ class SemanticMapping:
 
         pcd_velody = np.matmul(T_origin_to_velodyne, pcd)
 
+        mask_positive = pcd_velody[0, :] > 0
+
         IXY = dehomogenize( np.matmul(self.cam6.P, pcd_velody)).astype(np.int32)
         mask = np.logical_and( np.logical_and( 0 <= IXY[0,:], IXY[0,:] < image.shape[1]), 
                                np.logical_and( 0 <= IXY[1,:], IXY[1,:] < image.shape[0]))
+        mask = np.logical_and(mask, mask_positive)
 
         masked_pcd = pcd[:,mask]
         image_idx = IXY[:,mask]
@@ -191,7 +199,7 @@ class SemanticMapping:
         transform_matrix, trans, rot, euler = get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
         self.position_rel = np.array([[trans[0], trans[1], trans[2]]]).T
         self.yaw_rel = euler[2]
-        if trans is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2 or np.linalg.norm(euler) > 0.1:
+        if trans is None or self.map is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2 or np.linalg.norm(euler) > 0.1:
             flag = True
         else:
             flag = False
@@ -296,6 +304,8 @@ class SemanticMapping:
     
     
     def add_car_to_map(self, color_map):
+        """ visualize ego car on the color map """
+        # setting parameters
         length = 4.0
         width = 1.8
         mask_length = int(length / self.d)
@@ -305,17 +315,22 @@ class SemanticMapping:
             [0, -self.d, width/2],
             [0, 0, 1]
         ])
+
+        # pixels in ego frame
         Ix = np.tile(np.arange(0, mask_length), mask_width)
         Iy = np.repeat(np.arange(0, mask_width), mask_length)
         Ixy = np.vstack([Ix, Iy])
-        print("Ixy: ", Ixy)
-        print("pose_rel", self.position_rel, self.position_rel/self.d)
+        
+        # transform to map frame
         R = get_rotation_from_angle_2d(self.yaw_rel)
-        Ixy_map = np.matmul(R, Ixy) + self.position_rel[0:2].reshape([2,1]) / self.d + np.array([[0, self.map_height / 2]]).T
+        Ixy_map = np.matmul(R, Ixy) + self.position_rel[0:2].reshape([2,1]) / self.d + \
+                        np.array([[-self.map_boundary[0][0]/self.d, self.map_height / 2]]).T
         Ixy_map = Ixy_map.astype(np.int)
-        print("Ixy_map: ", Ixy_map)
+        
+        # setting color
         color_map[Ixy_map[1,:], Ixy_map[0,:],:] = [255, 0, 0]
         return color_map
+
 
     def get_extrinsics(self, pose):
         T_base_to_origin = get_transform_from_pose(pose)

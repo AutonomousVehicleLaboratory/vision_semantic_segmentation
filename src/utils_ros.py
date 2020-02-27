@@ -40,6 +40,7 @@ def get_transformation(frame_from='/base_link', frame_to='/local_map', tf_listen
     if tf_ros is None:
         tf_ros = TransformerROS()
     try:
+        tf_listener.waitForTransform(frame_to, frame_from, rospy.Time(), rospy.Duration(1.0))
         (trans, rot) = tf_listener.lookupTransform(frame_to, frame_from, rospy.Time(0))
     except (LookupException, ConnectivityException, ExtrapolationException):
         rospy.logerr("exception, from %s to %s frame may not have setup!", frame_from, frame_to)
