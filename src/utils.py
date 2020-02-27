@@ -190,7 +190,15 @@ def show_image_list(image_list, delay=0, size=None):
         concatenated = np.concatenate(channel_fixed, axis=1)
         cv2.imshow("concatenated", concatenated)
         cv2.waitKey(delay)
-        
+
+def get_rotation_from_angle_2d(angle):
+    R = np.array([
+        [np.cos(angle), -np.sin(angle)],
+        [np.sin(angle), np.cos(angle)]
+    ])
+    return R
+
+
 def test_arg_max():
     mat = np.array([
         [
