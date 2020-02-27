@@ -21,7 +21,7 @@ from sensor_msgs import point_cloud2 as pc2
 
 
 from camera import camera_setup_6
-from utils import homogenize, dehomogenize, show_image_list
+from utils import homogenize, dehomogenize, get_rotation_from_angle_2d
 from utils_ros import set_map_pose, get_transformation, get_transform_from_pose
 from homography import generate_homography
 import time
@@ -62,7 +62,9 @@ class SemanticMapping:
         self.map_width = int((boundary[0][1] - boundary[0][0]) / self.d)
         self.map_height = int((boundary[1][1] - boundary[1][0]) / self.d)
         self.map_depth = len(self.catogories)
-        # self.catogories = [1, 2] # 1 for crosswalk, 2 for road
+
+        self.position_rel = np.array([[0,0,0]]).T
+        self.yaw_rel = 0
         
         self.preprocessing()
 
@@ -142,7 +144,11 @@ class SemanticMapping:
             set_map_pose(self.pose, '/world', '/local_map')
         
         pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
-        updated_map, color_map = self.update_map(self.map, pcd_in_range, pcd_label)
+        updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
+
+        # generate color map
+        color_map = self.color_map(updated_map)
+        color_map_with_car = self.add_car_to_map(color_map)
 
         self.map = updated_map
         # toc2 = time.time()
@@ -183,6 +189,8 @@ class SemanticMapping:
 
     def require_new_map(self, pose):
         transform_matrix, trans, rot, euler = get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
+        self.position_rel = np.array([[trans[0], trans[1], trans[2]]]).T
+        self.yaw_rel = euler[2]
         if trans is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2 or np.linalg.norm(euler) > 0.1:
             flag = True
         else:
@@ -193,6 +201,8 @@ class SemanticMapping:
 
     def create_new_local_map(self, pose):
         map_new = np.zeros((self.map_height , self.map_width, self.map_depth))
+        self.position_rel = np.array([[0, 0, 0]]).T
+        self.yaw_rel = 0
         return map_new
 
 
@@ -210,8 +220,8 @@ class SemanticMapping:
             T_new_map_to_world = get_transform_from_pose(pose_new)
             T_old_map_to_new_map = np.matmul(T_old_map_to_world, np.linalg.inv(T_new_map_to_world))
 
-            mat, _, _, _ = get_transformation(frame_from='local_map', 
-                                              frame_to='base_link',
+            mat, _, _, _ = get_transformation(frame_from='/local_map', 
+                                              frame_to='/base_link',
                                               tf_listener=self.tf_listener,
                                               tf_ros=self.tf_ros )
 
@@ -250,17 +260,17 @@ class SemanticMapping:
         for i in range(len(self.catogories)):
             idx = label[0,:] == self.catogories[i]
             idx_mask = np.logical_and(idx, mask)
-            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 1
+            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
+            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
         
-        # generate color map
-        color_map = self.color_map(map_local)
+        map_local[map_local < 0] = 0
 
         # threshold and normalize
         # map_local[map_local > self.map_value_max] = self.map_value_max
         # print("max:", np.max(map_local))
         # normalized_map = self.normalize_map(map_local)
 
-        return map_local, color_map
+        return map_local
 
 
     def normalize_map(self, map_local):
@@ -283,7 +293,29 @@ class SemanticMapping:
         color_map[map_sum == 0] = [0,0,0] # recover all zero positions
         
         return color_map
-
+    
+    
+    def add_car_to_map(self, color_map):
+        length = 4.0
+        width = 1.8
+        mask_length = int(length / self.d)
+        mask_width = int(width / self.d)
+        discretize_matrix_inv = np.array([
+            [self.d, 0, -length/4],
+            [0, -self.d, width/2],
+            [0, 0, 1]
+        ])
+        Ix = np.tile(np.arange(0, mask_length), mask_width)
+        Iy = np.repeat(np.arange(0, mask_width), mask_length)
+        Ixy = np.vstack([Ix, Iy])
+        print("Ixy: ", Ixy)
+        print("pose_rel", self.position_rel, self.position_rel/self.d)
+        R = get_rotation_from_angle_2d(self.yaw_rel)
+        Ixy_map = np.matmul(R, Ixy) + self.position_rel[0:2].reshape([2,1]) / self.d + np.array([[0, self.map_height / 2]]).T
+        Ixy_map = Ixy_map.astype(np.int)
+        print("Ixy_map: ", Ixy_map)
+        color_map[Ixy_map[1,:], Ixy_map[0,:],:] = [255, 0, 0]
+        return color_map
 
     def get_extrinsics(self, pose):
         T_base_to_origin = get_transform_from_pose(pose)
