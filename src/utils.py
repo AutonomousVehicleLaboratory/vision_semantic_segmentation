@@ -220,10 +220,19 @@ def test_arg_max():
     mat_new[mat_argmax == 0] = 77
     print(mat_new)
 
+def test_queue():
+    import queue
+    q = queue.Queue()
+    q.put(1)
+    print(q)
+    q.put(3)
+    print(q.get())
+
 # main
 def main():
     pass
     # test_arg_max()
+    # test_queue()
 
 if __name__ == "__main__":
     main()

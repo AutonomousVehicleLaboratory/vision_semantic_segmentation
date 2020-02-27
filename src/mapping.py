@@ -44,6 +44,7 @@ class SemanticMapping:
         self.bridge = CvBridge()
         
         self.pose = None
+        self.pose_queue = []
         self.cam6 = camera_setup_6()
         rospy.logwarn("currently only setup for camera6")
         rospy.logwarn("currently only for front view")
@@ -93,7 +94,7 @@ class SemanticMapping:
 
     def set_velodyne_to_baselink(self):
         rospy.logwarn("velodyne to baselink from TF is different from this, which is correct?")
-        T = euler_matrix(0., 0.157, 0.)
+        T = euler_matrix(0., 0.155, 0.)
         t = np.array([[2.64, 0, 1.98]]).T
         T[0:3,-1::] = t
         return T
@@ -109,9 +110,12 @@ class SemanticMapping:
 
 
     def pose_callback(self, msg):
-        self.pose = msg.pose
+        rospy.loginfo("Getting pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+        self.pose_queue.append(msg)
+        rospy.loginfo("Pose queue length: %d", len(self.pose_queue))
         # T, trans, rot, euler = get_transformation(frame_from='/velodyne', frame_to='/base_link')
-        
+    
+    def update_map_pose(self):
         if self.map_pose is None:
             self.map_pose = self.pose
             set_map_pose(self.pose, '/world', '/local_map')
@@ -119,16 +123,39 @@ class SemanticMapping:
             set_map_pose(self.map_pose, '/world', '/local_map')
             get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
 
+    def update_pose(self, stamp):
+        """ update self.pose with the closest one in the queue """
+        for i in range(len(self.pose_queue)-1):
+            if self.pose_queue[i+1].header.stamp > stamp:
+                if self.pose_queue[i].header.stamp < stamp:
+                    diff_2 = self.pose_queue[i+1].header.stamp - stamp
+                    diff_1 = stamp - self.pose_queue[i].header.stamp
+                    if diff_1 > diff_2:
+                        msg = self.pose_queue[i+1]
+                    else:
+                        msg = self.pose_queue[i]
+                    self.pose_queue = self.pose_queue[i::]
+                    rospy.loginfo("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+                    return msg.pose
+        msg = self.pose_queue[-1]
+        rospy.loginfo("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+        return msg.pose
+
         
     def image_callback(self, msg):
+        rospy.loginfo("Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         try:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
             print(e)   
         
         ## =========== Mapping
-        if self.pcd is None or self.map_pose is None:
+        if self.pcd is None or len(self.pose_queue) == 0:
             return
+        
+        self.pose = self.update_pose(msg.header.stamp)
+        self.update_map_pose()
+
         color_map = self.mapping(image_in, self.pose)
 
         try:

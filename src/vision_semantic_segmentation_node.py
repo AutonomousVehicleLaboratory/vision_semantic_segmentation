@@ -67,6 +67,7 @@ class VisionSemanticSegmentationNode:
 
 
     def image_callback(self, msg):
+        rospy.logwarn("Segmentating image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         try:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
@@ -108,7 +109,9 @@ class VisionSemanticSegmentationNode:
             image_pub = self.bridge.cv2_to_imgmsg(colored_output, encoding="passthrough")
         except CvBridgeError as e:
             print(e)
-
+        rospy.logwarn("Publish Segmentated image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+        
+        image_pub.header.stamp = msg.header.stamp
         if msg.header.frame_id == "camera1":
             self.image_pub_cam1.publish(image_pub)
         elif msg.header.frame_id == "camera6":
