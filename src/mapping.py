@@ -343,6 +343,7 @@ class SemanticMapping:
         width = 1.8
         mask_length = int(length / self.d)
         mask_width = int(width / self.d)
+        car_center = np.array([[length / 4, width / 2]]).T / self.d
         discretize_matrix_inv = np.array([
             [self.d, 0, -length/4],
             [0, -self.d, width/2],
@@ -356,7 +357,7 @@ class SemanticMapping:
         
         # transform to map frame
         R = get_rotation_from_angle_2d(self.yaw_rel)
-        Ixy_map = np.matmul(R, Ixy) + self.position_rel[0:2].reshape([2,1]) / self.d + \
+        Ixy_map = np.matmul(R, Ixy - car_center) + self.position_rel[0:2].reshape([2,1]) / self.d + \
                         np.array([[-self.map_boundary[0][0]/self.d, self.map_height / 2]]).T
         Ixy_map = Ixy_map.astype(np.int)
         
