@@ -75,6 +75,7 @@ class VisionSemanticSegmentationNode:
         
         ## ========== Image preprocessing
         image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
+        image_in = cv2.undistort(image_in, self.cam6.K, self.cam6.dist)
         
         # resize image
         scale_percent = 50  # percent of original size
