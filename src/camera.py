@@ -17,7 +17,7 @@ from utils import homogenize, dehomogenize, parameterize_rotation
 
 # classes
 class Camera:
-    def __init__(self, K, R, t, imSize = None, id=0):
+    def __init__(self, K, R, t, imSize = None, id=0, dist=None):
         self.id = id
         self.K = K
         self.R = R
@@ -29,6 +29,7 @@ class Camera:
         self.K_inv = np.linalg.inv(self.K)      # inverse of intrisic for convenience
         self.C_world_inhomo =np.matmul( - R.T , t)  # camera center in the world coordinate using inhomogeneous representation
         self.imSize = imSize                    # image size
+        self.dist = dist
 
     def pixel_to_ray(self, Ix, Iy, world=True):
         """ given a pixel, calculate a line that all points will be projected to the pixel
@@ -121,7 +122,8 @@ def camera_setup_6():
     R = np.matmul(R_c_to_o, R)
     """
     imSize = [1920, 1440]
-    cam = Camera(K, R, t, imSize=imSize, id=6)
+    dist = np.array([-0.191070, 0.100324, 0.004250, -0.003317, 0.000000])
+    cam = Camera(K, R, t, imSize=imSize, id=6, dist=dist)
     return cam
 
 def test_camera_setup():
