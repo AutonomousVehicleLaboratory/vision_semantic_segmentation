@@ -74,14 +74,20 @@ def set_map_pose(pose, parent_frame_id, child_frame_id):
     m.transform.rotation.w = pose.orientation.w
     br.sendTransformMessage(m)
 
-def get_transformation(frame_from='/base_link', frame_to='/local_map', tf_listener = None, tf_ros = None):
+def get_transformation(frame_from='/base_link', frame_to='/local_map',
+                       time_from=None, time_to=None, static_frame=None,
+                       tf_listener = None, tf_ros = None):
     if tf_listener is None:
         tf_listener = TransformListener()
     if tf_ros is None:
         tf_ros = TransformerROS()
     try:
-        tf_listener.waitForTransform(frame_to, frame_from, rospy.Time(), rospy.Duration(1.0))
-        (trans, rot) = tf_listener.lookupTransform(frame_to, frame_from, rospy.Time(0))
+        if time_from is None or time_to is None:
+            # tf_listener.waitForTransform(frame_from, frame_to, rospy.Time(), rospy.Duration(1.0))
+            (trans, rot) = tf_listener.lookupTransform(frame_to, frame_from, rospy.Time(0))
+        else:
+            # tf_listener.waitForTransformFull(frame_from, time_from, frame_to, time_to, static_frame, rospy.Duration(1.0))
+            (trans, rot) = tf_listener.lookupTransformFull(frame_to, time_to, frame_from, time_from, static_frame)
     except (LookupException, ConnectivityException, ExtrapolationException):
         rospy.logerr("exception, from %s to %s frame may not have setup!", frame_from, frame_to)
         return None, None, None, None
