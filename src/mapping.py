@@ -45,6 +45,7 @@ class SemanticMapping:
         
         self.pose = None
         self.pose_queue = []
+        self.pose_time = None
         self.cam6 = camera_setup_6()
         rospy.logwarn("currently only setup for camera6")
         rospy.logwarn("currently only for front view")
@@ -121,7 +122,7 @@ class SemanticMapping:
             set_map_pose(self.pose, '/world', '/local_map')
         else:
             set_map_pose(self.map_pose, '/world', '/local_map')
-            get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
+            # get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
 
     def update_pose(self, stamp):
         """ update self.pose with the closest one in the queue """
@@ -136,10 +137,10 @@ class SemanticMapping:
                         msg = self.pose_queue[i]
                     self.pose_queue = self.pose_queue[i::]
                     rospy.loginfo("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
-                    return msg.pose
+                    return msg.pose, stamp
         msg = self.pose_queue[-1]
         rospy.loginfo("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
-        return msg.pose
+        return msg.pose, stamp
 
         
     def image_callback(self, msg):
@@ -153,7 +154,7 @@ class SemanticMapping:
         if self.pcd is None or len(self.pose_queue) == 0:
             return
         
-        self.pose = self.update_pose(msg.header.stamp)
+        self.pose, self.pose_time = self.update_pose(msg.header.stamp)
         self.update_map_pose()
 
         color_map = self.mapping(image_in, self.pose)
@@ -227,7 +228,9 @@ class SemanticMapping:
 
 
     def require_new_map(self, pose):
-        transform_matrix, trans, rot, euler = get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
+        transform_matrix, trans, rot, euler = get_transformation( frame_from='/base_link', frame_to='/local_map',
+                                                                  time_from= self.pose_time, time_to=rospy.Time(0), static_frame='/world',
+                                                                  tf_listener=self.tf_listener, tf_ros=self.tf_ros)
         self.position_rel = np.array([[trans[0], trans[1], trans[2]]]).T
         self.yaw_rel = euler[2]
         if trans is None or self.map is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2 or np.linalg.norm(euler) > 0.1:
@@ -259,10 +262,9 @@ class SemanticMapping:
             T_new_map_to_world = get_transform_from_pose(pose_new)
             T_old_map_to_new_map = np.matmul(T_old_map_to_world, np.linalg.inv(T_new_map_to_world))
 
-            mat, _, _, _ = get_transformation(frame_from='/local_map', 
-                                              frame_to='/base_link',
-                                              tf_listener=self.tf_listener,
-                                              tf_ros=self.tf_ros )
+            mat, _, _, _ = get_transformation( frame_from='/local_map', frame_to='/base_link',
+                                               time_from=rospy.Time(0), time_to=self.pose_time, static_frame='/world',
+                                               tf_listener=self.tf_listener, tf_ros=self.tf_ros )
 
             if mat is not None:
                 T_old_map_to_new_map = mat
