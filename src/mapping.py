@@ -94,7 +94,7 @@ class SemanticMapping:
 
     def set_velodyne_to_baselink(self):
         rospy.logwarn("velodyne to baselink from TF is different from this, which is correct?")
-        T = euler_matrix(0., 0.157, 0.)
+        T = euler_matrix(0., 0.140, 0.)
         t = np.array([[2.64, 0, 1.98]]).T
         T[0:3,-1::] = t
         return T
