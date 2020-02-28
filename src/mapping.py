@@ -30,14 +30,21 @@ import time
 
 # classes
 class SemanticMapping:
-    def __init__(self, discretization = 0.1, boundary = [[-20, 50], [-10, 10]]):
+    def __init__(self, discretization = 0.1, boundary = [[-20, 50], [-10, 10]], depth_method='points_map'):
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
-        self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
         self.image_sub_cam1 = rospy.Subscriber("/camera1/semantic", Image, self.image_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
+        if depth_method == 'points_map':
+            self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
+        elif depth_method == 'points_raw':
+            self.sub_pcd = rospy.Subscriber("/points_raw", PointCloud2, self.pcd_callback)
+        else:
+            rospy.logwarn("Depth estimation method set to others, use planar assumption!")
 
         self.pub_semantic_local_map = rospy.Publisher("/semantic_local_map", Image, queue_size=5)
         self.pub_pcd = rospy.Publisher("/semantic_point_cloud", PointCloud2, queue_size=5)
+
+        self.depth_method = depth_method
 
         self.tf_listener = TransformListener()
         self.tfmr = Transformer()
@@ -52,6 +59,10 @@ class SemanticMapping:
         rospy.logwarn("currently only setup for camera6")
         rospy.logwarn("currently only for front view")
         self.pcd = None
+        self.pcd_frame_id = None
+        self.pcd_queue = []
+        self.pcd_header_queue = []
+        self.pcd_time = None
         
         self.map = None
         self.map_pose = None
@@ -95,6 +106,11 @@ class SemanticMapping:
             [self.map_height/4, self.map_height/4, self.map_height * 3 / 4, self.map_height * 3 / 4]
         ])
 
+        self.anchor_points_2 = np.array([
+            [self.map_width, self.map_width / 2, self.map_width / 2, self.map_width],
+            [self.map_height/4, self.map_height/4, self.map_height * 3 / 4, self.map_height * 3 / 4]
+        ])
+
 
     def set_velodyne_to_baselink(self):
         rospy.logwarn("velodyne to baselink from TF is tunned, current version fits best.")
@@ -104,13 +120,53 @@ class SemanticMapping:
         return T
     
 
-    def pcd_callback(self, msg):
+    def pcd_callback_old(self, msg):
+        rospy.logwarn("pcd data frame_id %s", msg.header.frame_id)
         rospy.logdebug("pcd data received")
         rospy.logdebug("pcd size: %d, %d", msg.height, msg.width)
         self.pcd = np.empty((3, msg.width))
         for i, el in enumerate( pc2.read_points(msg, field_names = ("x", "y", "z"), skip_nans=True)):
             self.pcd[:,i] = el
         self.pcd = homogenize(self.pcd)
+        self.pcd_frame_id = msg.header.frame_id
+    
+
+    def pcd_callback(self, msg):
+        rospy.logwarn("pcd data frame_id %s", msg.header.frame_id)
+        rospy.logdebug("pcd data received")
+        rospy.logdebug("pcd size: %d, %d", msg.height, msg.width)
+        rospy.logwarn("pcd queue size: %d", len(self.pcd_queue))
+        pcd = np.empty((3, msg.width))
+        for i, el in enumerate( pc2.read_points(msg, field_names = ("x", "y", "z"), skip_nans=True)):
+            pcd[:,i] = el
+        self.pcd_queue.append(homogenize(pcd))
+        self.pcd_header_queue.append(msg.header)
+        self.pcd_frame_id = msg.header.frame_id
+    
+
+    def update_pcd(self, stamp):
+        """ update self.pcd with the closest one in the queue """
+        for i in range(len(self.pcd_header_queue)-1):
+            if self.pcd_header_queue[i+1].stamp > stamp:
+                if self.pcd_header_queue[i].stamp < stamp:
+                    diff_2 = self.pcd_header_queue[i+1].stamp - stamp
+                    diff_1 = stamp - self.pcd_header_queue[i].stamp
+                    if diff_1 > diff_2:
+                        header = self.pcd_header_queue[i+1]
+                        pcd = self.pcd_queue[i+1]
+                    else:
+                        header = self.pcd_header_queue[i]
+                        pcd = self.pcd_queue[i]
+                    self.pcd_header_queue = self.pcd_header_queue[i::]
+                    self.pcd_queue = self.pcd_queue[i::]
+                    rospy.logdebug("Setting current pcd at: %d.%09ds", header.stamp.secs, header.stamp.nsecs)
+                    return pcd, header.stamp
+        header = self.pcd_header_queue[-1]
+        pcd = self.pcd_queue[-1]
+        self.pcd_header_queue = self.pcd_header_queue[-1::]
+        self.pcd_queue = self.pcd_queue[-1::]
+        rospy.logdebug("Setting current pcd at: %d.%09ds", header.stamp.secs, header.stamp.nsecs)
+        return pcd, header.stamp
 
 
     def pose_callback(self, msg):
@@ -140,10 +196,11 @@ class SemanticMapping:
                         msg = self.pose_queue[i]
                     self.pose_queue = self.pose_queue[i::]
                     rospy.logdebug("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
-                    return msg.pose, stamp
+                    return msg.pose, msg.header.stamp
         msg = self.pose_queue[-1]
+        self.pose_queue = self.pose_queue[-1::]
         rospy.logdebug("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
-        return msg.pose, stamp
+        return msg.pose, msg.header.stamp
 
         
     def image_callback(self, msg):
@@ -161,10 +218,11 @@ class SemanticMapping:
             rospy.logwarn("cannot find camera for frame_id %s", msg.header.frame_id)
         
         ## =========== Mapping
-        if self.pcd is None or len(self.pose_queue) == 0:
+        if len(self.pcd_header_queue) == 0 or len(self.pose_queue) == 0:
             return
         
         self.pose, self.pose_time = self.update_pose(msg.header.stamp)
+        self.pcd, self.pcd_time = self.update_pcd(msg.header.stamp)
         self.update_map_pose()
 
         color_map = self.mapping(image_in, self.pose, cam)
@@ -187,8 +245,13 @@ class SemanticMapping:
             self.map_pose = pose
             set_map_pose(self.pose, '/world', '/local_map')
         
-        pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose, cam)
-        updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
+        if self.depth_method == 'points_map' or self.depth_method == 'points_raw':
+            pcd_in_range, pcd_label = self.project_pcd(self.pcd, self.pcd_frame_id, im_src, pose, cam)
+            updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
+            pcd_pub = create_point_cloud(dehomogenize(pcd_in_range).T, pcd_label.T, frame_id=self.pcd_frame_id)
+            self.pub_pcd.publish(pcd_pub)
+        else:
+            updated_map = self.update_map_planar(self.map, im_src, cam)
 
         # generate color map
         color_map = self.color_map(updated_map)
@@ -196,15 +259,12 @@ class SemanticMapping:
 
         self.map = updated_map
         # toc2 = time.time()
-        # rospy.loginfo("time: %f s", toc2 - tic)
-
-        pcd_pub = create_point_cloud(dehomogenize(pcd_in_range).T, pcd_label.T, frame_id='world')
-        self.pub_pcd.publish(pcd_pub)
+        # rospy.loginfo("time: %f s", toc2 - tic)        
 
         return color_map
     
 
-    def project_pcd(self, pcd, image, pose, cam):
+    def project_pcd(self, pcd, pcd_frame_id, image, pose, cam):
         """ extract labels of each point in the pcd from image 
         
         Params:
@@ -216,13 +276,16 @@ class SemanticMapping:
             return
         if pcd.shape[0] == 3:
             pcd = homogenize(pcd)
-
-        pcd = pcd[:,pcd[0,:]!=0]
+        if pcd_frame_id != "velodyne":
+            pcd = pcd[:,pcd[0,:]!=0]
         
-        T_base_to_origin = get_transform_from_pose(pose)
-        T_origin_to_velodyne = np.linalg.inv(np.matmul(T_base_to_origin, self.T_velodyne_to_basklink))
+            T_base_to_origin = get_transform_from_pose(pose)
+            T_origin_to_velodyne = np.linalg.inv(np.matmul(T_base_to_origin, self.T_velodyne_to_basklink))
 
-        pcd_velody = np.matmul(T_origin_to_velodyne, pcd)
+            pcd_velody = np.matmul(T_origin_to_velodyne, pcd)
+        else:
+            pcd_velody = pcd
+
         IXY = dehomogenize( np.matmul(cam.P, pcd_velody)).astype(np.int32)
 
         mask_positive = pcd_velody[0, :] > 0
@@ -297,9 +360,12 @@ class SemanticMapping:
         """ project the pcd on the map """
 
         normal = np.array([[0.0 ,0.0 ,1.0]]).T
-        T_local_to_world = get_transform_from_pose(self.map_pose)
-        T_world_to_local = np.linalg.inv(T_local_to_world)
-        pcd_local = np.matmul(T_world_to_local, pcd)[0:3,:]
+        # T_local_to_world = get_transform_from_pose(self.map_pose)
+        # T_world_to_local = np.linalg.inv(T_local_to_world)
+        T_pcd_to_local, _, _, _ = get_transformation(frame_from=self.pcd_frame_id, time_from=self.pcd_time,
+                                            frame_to='/local_map', time_to=rospy.Time(0), static_frame='world',
+                                            tf_listener=self.tf_listener, tf_ros=self.tf_ros )
+        pcd_local = np.matmul(T_pcd_to_local, pcd)[0:3,:]
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
 
         # discretize
@@ -313,6 +379,49 @@ class SemanticMapping:
             idx_mask = np.logical_and(idx, mask)
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
+        
+        map_local[map_local < 0] = 0
+
+        # threshold and normalize
+        # map_local[map_local > self.map_value_max] = self.map_value_max
+        # print("max:", np.max(map_local))
+        # normalized_map = self.normalize_map(map_local)
+
+        return map_local
+
+
+    def update_map_planar(self, map_local, image, cam):
+        """ project the semantic image onto the map plane and udpate it """
+
+        points_map = homogenize(np.array(self.anchor_points_2))
+        points_local = np.matmul(self.discretize_matrix_inv, points_map)
+        points_local[2,:] = 0
+        points_local = homogenize(points_local)
+        
+        T_local_to_base, _, _, _ = get_transformation(frame_from='/local_map', time_from=rospy.Time(0),
+                                            frame_to='/base_link', time_to=self.pose_time, static_frame='world',
+                                            tf_listener=self.tf_listener, tf_ros=self.tf_ros )
+        T_base_to_velodyne = np.linalg.inv(self.T_velodyne_to_basklink)
+        T_local_to_velodyne = np.matmul(T_base_to_velodyne, T_local_to_base)
+        
+        # compute new points
+        points_velodyne = np.matmul(T_local_to_velodyne, points_local)
+        points_image = dehomogenize(np.matmul(cam.P, points_velodyne))
+
+        # generate homography
+        image_on_map = generate_homography(image, points_image.T, self.anchor_points_2.T, vis=False, out_size=[self.map_width, self.map_height])
+        sep = int((8-self.map_boundary[0][0]) / self.d)
+        mask = np.ones(map_local.shape[0:2])
+        mask[:, 0:sep] = 0
+        idx_mask_3 = np.zeros([map_local.shape[0], map_local.shape[1], 3])
+
+        for i in range(len(self.catogories)):
+            idx = image_on_map[:,:,0] == self.catogories[i]
+            idx_mask = np.logical_and(idx, mask)
+            map_local[idx_mask, i] += 1
+            # idx_mask_3[idx_mask] = self.catogories_color[i]
+        # cv2.imshow("mask", idx_mask_3.astype(np.uint8))
+        # cv2.waitKey(1)
         
         map_local[map_local < 0] = 0
 
@@ -394,7 +503,7 @@ class SemanticMapping:
 # main
 def main():
     rospy.init_node('semantic_mapping')
-    sm = SemanticMapping()
+    sm = SemanticMapping(depth_method='points_map')
     rospy.spin()
 
 

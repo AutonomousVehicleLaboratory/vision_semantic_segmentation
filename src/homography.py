@@ -18,21 +18,22 @@ from utils import dehomogenize
 
 
 # functions
-def generate_homography(im_src, pts_src, pts_dst, vis=False):
+def generate_homography(im_src, pts_src, pts_dst, vis=False, out_size=None):
     """ generate homography transformed image from point corrspondences
 
     Params:
         im_src: input image
         pts_src: n by 2 array
         pts_dst: n by 2 array
+        out_size: [width, height] specify the output size
     Return:
         im_dst: transformed image
     link:
     https://www.learnopencv.com/homography-examples-using-opencv-python-c/
     """
     # Calculate Homography
-    assert( len(pts_src[0]) == 2)
-    assert( len(pts_dst[0]) == 2)
+    assert( len(pts_src[1]) == 2)
+    assert( len(pts_dst[1]) == 2)
 
     h, status = cv2.findHomography(pts_src, pts_dst)
 
@@ -46,7 +47,10 @@ def generate_homography(im_src, pts_src, pts_dst, vis=False):
     #     raise NotImplementedError
 
     # Warp source image to destination based on homography
-    im_dst = cv2.warpPerspective(im_src, h, (im_src.shape[1], im_src.shape[0])) #
+    if out_size is None:
+        im_dst = cv2.warpPerspective(im_src, h, (im_src.shape[1], im_src.shape[0])) #
+    else:
+        im_dst = cv2.warpPerspective(im_src, h, (out_size[0], out_size[1])) #
     # im_dst = cv2.warpPerspective(im_src, h, (size_dst_max[0],size_dst_max[1])) #
     # im_dst = im_dst[size_dst_min[1]::, size_dst_min[0]::]
     if vis == True:
