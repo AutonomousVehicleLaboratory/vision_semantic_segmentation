@@ -20,7 +20,7 @@ from sensor_msgs.msg import Image, PointCloud2
 from sensor_msgs import point_cloud2 as pc2
 
 
-from camera import camera_setup_6
+from camera import camera_setup_1, camera_setup_6
 from utils import homogenize, dehomogenize, get_rotation_from_angle_2d
 from utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
 from homography import generate_homography
@@ -33,6 +33,7 @@ class SemanticMapping:
     def __init__(self, discretization = 0.1, boundary = [[-20, 50], [-10, 10]]):
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
         self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
+        self.image_sub_cam1 = rospy.Subscriber("/camera1/semantic", Image, self.image_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
 
         self.pub_semantic_local_map = rospy.Publisher("/semantic_local_map", Image, queue_size=5)
@@ -46,6 +47,7 @@ class SemanticMapping:
         self.pose = None
         self.pose_queue = []
         self.pose_time = None
+        self.cam1 = camera_setup_1()
         self.cam6 = camera_setup_6()
         rospy.logwarn("currently only setup for camera6")
         rospy.logwarn("currently only for front view")
@@ -78,7 +80,8 @@ class SemanticMapping:
     def preprocessing(self):
         """ setup constant matrices """
         self.T_velodyne_to_basklink = self.set_velodyne_to_baselink()
-        self.T_cam_to_base = np.matmul(self.T_velodyne_to_basklink, self.cam6.T)
+        self.T_cam1_to_base = np.matmul(self.T_velodyne_to_basklink, self.cam1.T)
+        self.T_cam6_to_base = np.matmul(self.T_velodyne_to_basklink, self.cam6.T)
         
         self.discretize_matrix_inv = np.array([
             [self.d, 0, self.map_boundary[0][0]],
@@ -150,6 +153,13 @@ class SemanticMapping:
         except CvBridgeError as e:
             print(e)   
         
+        if msg.header.frame_id == "camera1":
+            cam = self.cam1
+        elif msg.header.frame_id == "camera6":
+            cam = self.cam6
+        else:
+            rospy.logwarn("cannot find camera for frame_id %s", msg.header.frame_id)
+        
         ## =========== Mapping
         if self.pcd is None or len(self.pose_queue) == 0:
             return
@@ -157,7 +167,7 @@ class SemanticMapping:
         self.pose, self.pose_time = self.update_pose(msg.header.stamp)
         self.update_map_pose()
 
-        color_map = self.mapping(image_in, self.pose)
+        color_map = self.mapping(image_in, self.pose, cam)
 
         try:
             image_pub = self.bridge.cv2_to_imgmsg(color_map, encoding="passthrough")
@@ -168,7 +178,7 @@ class SemanticMapping:
         self.pub_semantic_local_map.publish(image_pub)
         
 
-    def mapping(self, im_src, pose):
+    def mapping(self, im_src, pose, cam):
         # tic = time.time()
         if self.require_new_map(pose):
             pose_old = self.map_pose
@@ -177,7 +187,7 @@ class SemanticMapping:
             self.map_pose = pose
             set_map_pose(self.pose, '/world', '/local_map')
         
-        pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose)
+        pcd_in_range, pcd_label = self.project_pcd(self.pcd, im_src, pose, cam)
         updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
 
         # generate color map
@@ -194,7 +204,7 @@ class SemanticMapping:
         return color_map
     
 
-    def project_pcd(self, pcd, image, pose):
+    def project_pcd(self, pcd, image, pose, cam):
         """ extract labels of each point in the pcd from image 
         
         Params:
@@ -213,7 +223,7 @@ class SemanticMapping:
         T_origin_to_velodyne = np.linalg.inv(np.matmul(T_base_to_origin, self.T_velodyne_to_basklink))
 
         pcd_velody = np.matmul(T_origin_to_velodyne, pcd)
-        IXY = dehomogenize( np.matmul(self.cam6.P, pcd_velody)).astype(np.int32)
+        IXY = dehomogenize( np.matmul(cam.P, pcd_velody)).astype(np.int32)
 
         mask_positive = pcd_velody[0, :] > 0
         mask = np.logical_and( np.logical_and( 0 <= IXY[0,:], IXY[0,:] < image.shape[1]), 
@@ -366,11 +376,16 @@ class SemanticMapping:
         return color_map
 
 
-    def get_extrinsics(self, pose):
+    def get_extrinsics(self, pose, camera_id):
         T_base_to_origin = get_transform_from_pose(pose)
 
         # from camera to origin
-        T_cam_to_origin = np.matmul(T_base_to_origin, self.T_cam_to_base)
+        if camera_id == "camera1":
+            T_cam_to_origin = np.matmul(T_base_to_origin, self.T_cam1_to_base)
+        elif camera_id == "camera6":
+            T_cam_to_origin = np.matmul(T_base_to_origin, self.T_cam6_to_base)
+        else:
+            rospy.logwarn("unable to find camera to base for camera_id %s", camera_id)
         T_origin_to_cam = np.linalg.inv(T_cam_to_origin)
         extrinsics = T_origin_to_cam[0:3]
         return extrinsics

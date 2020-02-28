@@ -7,8 +7,7 @@ high_res_images
 # temp
 tempimage.jpg
 
-# Ignore all the config file except template.yaml
-config/*.yaml
-!config/template.yaml
+# Ignore avl.yaml
+config/avl.yaml
 
 .DS_Store

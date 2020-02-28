@@ -24,7 +24,7 @@ from sensor_msgs.msg import Image
 from shape_msgs.msg import Plane
 from visualization_msgs.msg import Marker, MarkerArray
 
-from camera import camera_setup_6
+from camera import camera_setup_6, camera_setup_1
 from network.deeplab_v3_plus.config.demo import cfg
 from plane_3d import Plane3D
 from semantic_convex_hull import generate_convex_hull
@@ -59,9 +59,8 @@ class VisionSemanticSegmentationNode:
         self.plane = None
         self.plane_last_update_time = rospy.get_rostime()
         self.cam6 = camera_setup_6()
-        self.cam1 = camera_setup_6()
-        print("WARNING: using camera 6 data for camera 1 since it is not calibrated!")
-        
+        self.cam1 = camera_setup_1()
+
         self.hull_id = 0
         self.bridge = CvBridge()
 
@@ -75,7 +74,12 @@ class VisionSemanticSegmentationNode:
         
         ## ========== Image preprocessing
         image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
-        image_in = cv2.undistort(image_in, self.cam6.K, self.cam6.dist)
+        if msg.header.frame_id == "camera1":
+            image_in = cv2.undistort(image_in, self.cam1.K, self.cam1.dist)
+        elif msg.header.frame_id == "camera6":
+            image_in = cv2.undistort(image_in, self.cam6.K, self.cam6.dist)
+        else:
+            rospy.logwarn("unseen camera frame id %s, no undistortion performed.", msg.header.frame_id)
         
         # resize image
         scale_percent = 50  # percent of original size
@@ -113,12 +117,13 @@ class VisionSemanticSegmentationNode:
         rospy.logdebug("Publish Segmentated image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         
         image_pub.header.stamp = msg.header.stamp
+        image_pub.header.frame_id = msg.header.frame_id
         if msg.header.frame_id == "camera1":
             self.image_pub_cam1.publish(image_pub)
         elif msg.header.frame_id == "camera6":
             self.image_pub_cam6.publish(image_pub)
         else:
-            print("publisher not spepcify for this image.")
+            rospy.logwarn("publisher not spepcify for this camera frame_id %s.", msg.header.frame_id)
 
 
     def generate_and_publish_convex_hull(self, image, cam_frame_id, index_care_about=1):
