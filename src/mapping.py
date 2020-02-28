@@ -94,7 +94,7 @@ class SemanticMapping:
 
 
     def set_velodyne_to_baselink(self):
-        rospy.logwarn("velodyne to baselink from TF is different from this, which is correct?")
+        rospy.logwarn("velodyne to baselink from TF is tunned, current version fits best.")
         T = euler_matrix(0., 0.140, 0.)
         t = np.array([[2.64, 0, 1.98]]).T
         T[0:3,-1::] = t
@@ -111,9 +111,9 @@ class SemanticMapping:
 
 
     def pose_callback(self, msg):
-        rospy.loginfo("Getting pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+        rospy.logdebug("Getting pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         self.pose_queue.append(msg)
-        rospy.loginfo("Pose queue length: %d", len(self.pose_queue))
+        rospy.logdebug("Pose queue length: %d", len(self.pose_queue))
         # T, trans, rot, euler = get_transformation(frame_from='/velodyne', frame_to='/base_link')
     
     def update_map_pose(self):
@@ -136,15 +136,15 @@ class SemanticMapping:
                     else:
                         msg = self.pose_queue[i]
                     self.pose_queue = self.pose_queue[i::]
-                    rospy.loginfo("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+                    rospy.logdebug("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
                     return msg.pose, stamp
         msg = self.pose_queue[-1]
-        rospy.loginfo("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+        rospy.logdebug("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         return msg.pose, stamp
 
         
     def image_callback(self, msg):
-        rospy.loginfo("Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+        rospy.logdebug("Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         try:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
