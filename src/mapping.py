@@ -56,7 +56,6 @@ class SemanticMapping:
         self.pose_time = None
         self.cam1 = camera_setup_1()
         self.cam6 = camera_setup_6()
-        rospy.logwarn("currently only setup for camera6")
         rospy.logwarn("currently only for front view")
         self.pcd = None
         self.pcd_frame_id = None
@@ -217,14 +216,17 @@ class SemanticMapping:
         else:
             rospy.logwarn("cannot find camera for frame_id %s", msg.header.frame_id)
         
-        ## =========== Mapping
-        if len(self.pcd_header_queue) == 0 or len(self.pose_queue) == 0:
+        if self.depth_method == 'points_map' or self.depth_method == 'points_raw':
+            if len(self.pcd_header_queue) == 0:
+                return
+            self.pcd, self.pcd_time = self.update_pcd(msg.header.stamp)
+            
+        if len(self.pose_queue) == 0:
             return
-        
         self.pose, self.pose_time = self.update_pose(msg.header.stamp)
-        self.pcd, self.pcd_time = self.update_pcd(msg.header.stamp)
         self.update_map_pose()
 
+        ## =========== Mapping
         color_map = self.mapping(image_in, self.pose, cam)
 
         try:
