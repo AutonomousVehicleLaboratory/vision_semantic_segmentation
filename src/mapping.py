@@ -62,6 +62,7 @@ class SemanticMapping:
         self.pcd_queue = []
         self.pcd_header_queue = []
         self.pcd_time = None
+        self.pcd_intensity_threshold = 15
         
         self.map = None
         self.map_pose = None
@@ -75,7 +76,7 @@ class SemanticMapping:
             [140, 140, 200], # crosswalk
             [255, 255, 255], # lane
             [107, 142, 35], # vegetation
-            [244, 35, 232] # sizewalk
+            [244, 35, 232] # sidewalk
         ])
         self.map_width = int((boundary[0][1] - boundary[0][0]) / self.d)
         self.map_height = int((boundary[1][1] - boundary[1][0]) / self.d)
@@ -135,10 +136,10 @@ class SemanticMapping:
         rospy.logdebug("pcd data received")
         rospy.logdebug("pcd size: %d, %d", msg.height, msg.width)
         rospy.logwarn("pcd queue size: %d", len(self.pcd_queue))
-        pcd = np.empty((3, msg.width))
-        for i, el in enumerate( pc2.read_points(msg, field_names = ("x", "y", "z"), skip_nans=True)):
+        pcd = np.empty((4, msg.width))
+        for i, el in enumerate( pc2.read_points(msg, field_names = ("x", "y", "z", "intensity"), skip_nans=True)):
             pcd[:,i] = el
-        self.pcd_queue.append(homogenize(pcd))
+        self.pcd_queue.append(pcd)
         self.pcd_header_queue.append(msg.header)
         self.pcd_frame_id = msg.header.frame_id
     
@@ -250,7 +251,7 @@ class SemanticMapping:
         if self.depth_method == 'points_map' or self.depth_method == 'points_raw':
             pcd_in_range, pcd_label = self.project_pcd(self.pcd, self.pcd_frame_id, im_src, pose, cam)
             updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
-            pcd_pub = create_point_cloud(dehomogenize(pcd_in_range).T, pcd_label.T, frame_id=self.pcd_frame_id)
+            pcd_pub = create_point_cloud(pcd_in_range[0:3].T, pcd_label.T, frame_id=self.pcd_frame_id)
             self.pub_pcd.publish(pcd_pub)
         else:
             updated_map = self.update_map_planar(self.map, im_src, cam)
@@ -276,17 +277,15 @@ class SemanticMapping:
         """
         if pcd is None:
             return
-        if pcd.shape[0] == 3:
-            pcd = homogenize(pcd)
         if pcd_frame_id != "velodyne":
-            pcd = pcd[:,pcd[0,:]!=0]
+            # pcd = pcd[:,pcd[0,:]!=0]
         
             T_base_to_origin = get_transform_from_pose(pose)
             T_origin_to_velodyne = np.linalg.inv(np.matmul(T_base_to_origin, self.T_velodyne_to_basklink))
 
-            pcd_velody = np.matmul(T_origin_to_velodyne, pcd)
+            pcd_velody = np.matmul(T_origin_to_velodyne, homogenize(pcd[0:3,:]))
         else:
-            pcd_velody = pcd
+            pcd_velody = homogenize(pcd[0:3,:])
 
         IXY = dehomogenize( np.matmul(cam.P, pcd_velody)).astype(np.int32)
 
@@ -294,6 +293,9 @@ class SemanticMapping:
         mask = np.logical_and( np.logical_and( 0 <= IXY[0,:], IXY[0,:] < image.shape[1]), 
                                np.logical_and( 0 <= IXY[1,:], IXY[1,:] < image.shape[0]))
         mask = np.logical_and(mask, mask_positive) # enforce only use points in the front
+
+        # mask_intensity = pcd[3, :] > self.pcd_intensity_threshold
+        # mask = np.logical_and(mask_intensity, mask)
 
         masked_pcd = pcd[:,mask]
         image_idx = IXY[:,mask]
@@ -367,7 +369,7 @@ class SemanticMapping:
         T_pcd_to_local, _, _, _ = get_transformation(frame_from=self.pcd_frame_id, time_from=self.pcd_time,
                                             frame_to='/local_map', time_to=rospy.Time(0), static_frame='world',
                                             tf_listener=self.tf_listener, tf_ros=self.tf_ros )
-        pcd_local = np.matmul(T_pcd_to_local, pcd)[0:3,:]
+        pcd_local = np.matmul(T_pcd_to_local, homogenize(pcd[0:3]))[0:3,:]
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
 
         # discretize
@@ -379,6 +381,14 @@ class SemanticMapping:
         for i in range(len(self.catogories)):
             idx = label[0,:] == self.catogories[i]
             idx_mask = np.logical_and(idx, mask)
+            if i == 1 or i == 2 or i == 0:
+                mask_intensity = pcd[3, :] > self.pcd_intensity_threshold
+                mask_intensity_idx = np.logical_and(mask_intensity, idx_mask)
+                if i == 0:
+                    j = 2
+                else:
+                    j = i
+                map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], j] += 5
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
         
