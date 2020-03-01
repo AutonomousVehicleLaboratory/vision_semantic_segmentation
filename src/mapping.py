@@ -24,7 +24,9 @@ from camera import camera_setup_1, camera_setup_6
 from utils import homogenize, dehomogenize, get_rotation_from_angle_2d
 from utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
 from homography import generate_homography
+from rendering import color_map_local
 import time
+import pickle
 # parameters
 
 
@@ -63,6 +65,7 @@ class SemanticMapping:
         self.pcd_header_queue = []
         self.pcd_time = None
         self.pcd_intensity_threshold = 15
+        self.use_pcd_intensity = True
         
         self.map = None
         self.map_pose = None
@@ -86,6 +89,12 @@ class SemanticMapping:
         self.yaw_rel = 0
         
         self.preprocessing()
+
+        self.is_recording = False
+        self.recorded_log_odds = {"log_odds":[], "h":[], "color_map":[]}
+        self.colored_map = None
+        self.record_max_length = 10
+        self.record_filename = "/home/henry/log_odds.pickle"
 
 
     def preprocessing(self):
@@ -257,10 +266,11 @@ class SemanticMapping:
             updated_map = self.update_map_planar(self.map, im_src, cam)
 
         # generate color map
-        color_map = self.color_map(updated_map)
+        color_map = color_map_local(updated_map, self.map_height, self.map_width, self.catogories, self.catogories_color)
         color_map_with_car = self.add_car_to_map(color_map)
 
         self.map = updated_map
+        self.colored_map = color_map
         # toc2 = time.time()
         # rospy.loginfo("time: %f s", toc2 - tic)        
 
@@ -353,8 +363,19 @@ class SemanticMapping:
             points_new_map = np.matmul(self.discretize_matrix, points_new_local)[0:2]
 
             # generate homography
-            map_old_transformed = generate_homography(map_old, points_old_map[0:2].T, points_new_map.T, vis=False)
+            map_old_transformed, h = generate_homography(map_old, points_old_map[0:2].T, points_new_map.T, vis=False, return_h=True)
             
+            if self.is_recording:
+                self.recorded_log_odds["log_odds"].append(np.array(map_old))
+                self.recorded_log_odds["h"].append(np.array(h))
+                self.recorded_log_odds["color_map"].append(self.colored_map)
+                length = len(self.recorded_log_odds["log_odds"])
+                rospy.logwarn("length of record %d", length)
+                if length == self.record_max_length:
+                    with open(self.record_filename, 'wb') as filehandler:
+                        pickle.dump(self.recorded_log_odds, filehandler)
+                    print("recorded file to %s", self.record_filename)
+
             # decay factor, make the map not as over confident
             map_old_transformed = map_old_transformed / self.map_decay
             return map_old_transformed
@@ -378,19 +399,25 @@ class SemanticMapping:
                                np.logical_and(0 <= pcd_pixel[1,:], pcd_pixel[1,:] < self.map_height ))
         
         # update corresponding labels
+
         for i in range(len(self.catogories)):
             idx = label[0,:] == self.catogories[i]
             idx_mask = np.logical_and(idx, mask)
-            if i == 1 or i == 2 or i == 0:
-                mask_intensity = pcd[3, :] > self.pcd_intensity_threshold
-                mask_intensity_idx = np.logical_and(mask_intensity, idx_mask)
-                if i == 0:
-                    j = 2
-                else:
-                    j = i
-                map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], j] += 5
+            
+            # suppression
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
             map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
+            
+            # intensity-aware
+            if self.use_pcd_intensity and (i == 1 or i == 2):
+                mask_intensity = pcd[3, :] > self.pcd_intensity_threshold      # mask of high intensity
+                mask_intensity_idx = np.logical_and(mask_intensity, idx_mask)  # mask of current label with high intensity
+                
+                # TODO: tune this formula for extra odds
+                # extra_odds added = (i-thred)
+                extra_odds = pcd[3,mask_intensity_idx] - self.pcd_intensity_threshold
+                map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], i] += extra_odds # assign to current channel
+            
         
         map_local[map_local < 0] = 0
 
@@ -450,21 +477,6 @@ class SemanticMapping:
         normalized_map = normalized_map * 255 / self.map_value_max
         normalized_map = normalized_map.astype(np.uint8)
         return normalized_map
-
-
-    def color_map(self, map_local):
-        """ color the map by which label has max number of points """
-        color_map = np.zeros((self.map_height, self.map_width, 3)).astype(np.uint8)
-        
-        map_sum = np.sum(map_local, axis=2) # get all zero mask
-        map_argmax = np.argmax(map_local, axis=2)
-        
-        for i in range(len(self.catogories)):
-            color_map[map_argmax == i] = self.catogories_color[i]
-        
-        color_map[map_sum == 0] = [0,0,0] # recover all zero positions
-        
-        return color_map
     
     
     def add_car_to_map(self, color_map):
