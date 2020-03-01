@@ -18,7 +18,7 @@ from utils import dehomogenize
 
 
 # functions
-def generate_homography(im_src, pts_src, pts_dst, vis=False, out_size=None):
+def generate_homography(im_src, pts_src, pts_dst, vis=False, out_size=None, return_h=False):
     """ generate homography transformed image from point corrspondences
 
     Params:
@@ -68,7 +68,10 @@ def generate_homography(im_src, pts_src, pts_dst, vis=False, out_size=None):
     
         cv2.waitKey(0)
 
-    return im_dst
+    if return_h:
+        return im_dst, h
+    else:
+        return im_dst
 
 def test_generate_homography():
     # Read source image.
