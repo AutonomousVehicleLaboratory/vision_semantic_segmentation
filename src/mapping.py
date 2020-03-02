@@ -93,8 +93,8 @@ class SemanticMapping:
         self.is_recording = False
         self.recorded_log_odds = {"log_odds":[], "h":[], "color_map":[]}
         self.colored_map = None
-        self.record_max_length = 10
-        self.record_filename = "/home/henry/log_odds.pickle"
+        self.record_max_length = 100
+        self.record_filename = "/home/henry/log_odds_2.pickle"
 
 
     def preprocessing(self):
@@ -266,8 +266,8 @@ class SemanticMapping:
             updated_map = self.update_map_planar(self.map, im_src, cam)
 
         # generate color map
-        color_map = color_map_local(updated_map, self.map_height, self.map_width, self.catogories, self.catogories_color)
-        color_map_with_car = self.add_car_to_map(color_map)
+        color_map = color_map_local(updated_map, self.catogories, self.catogories_color)
+        color_map_with_car = self.add_car_to_map(np.array(color_map))
 
         self.map = updated_map
         self.colored_map = color_map

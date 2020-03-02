@@ -14,9 +14,9 @@ import numpy as np
 
 
 # functions
-def color_map_local(map_local, map_height, map_width, catogories, catogories_color):
+def color_map_local(map_local, catogories, catogories_color):
     """ color the map by which label has max number of points """
-    colored_map = np.zeros((map_height, map_width, 3)).astype(np.uint8)
+    colored_map = np.zeros((map_local.shape[0], map_local.shape[1], 3)).astype(np.uint8)
     
     map_sum = np.sum(map_local, axis=2) # get all zero mask
     map_argmax = np.argmax(map_local, axis=2)
