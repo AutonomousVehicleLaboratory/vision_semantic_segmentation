@@ -410,23 +410,14 @@ class SemanticMapping:
             
             # intensity-aware
                 
-            if self.use_pcd_intensity:
-                #mask_intensity = pcd[3, :] > self.pcd_intensity_threshold      # mask of high intensity
-                #mask_intensity_idx = np.logical_and(mask_intensity, idx_mask)  # mask of current label with high intensity
-                mask_intensity_idx = idx_mask
+            if self.use_pcd_intensity and (i == 1 or i == 2):
+                mask_intensity = pcd[3, :] > self.pcd_intensity_threshold      # mask of high intensity
+                mask_intensity_idx = np.logical_and(mask_intensity, idx_mask)  # mask of current label with high intensity
+                
                 # TODO: tune this formula for extra odds
                 # extra_odds added = (i-thred)
-                temperature = 1
-                K = 4
-                threshold = 15
-                B = 1
-                extra_odds = np.clip(B + K * np.exp((pcd[3,mask_intensity_idx] - threshold)/temperature), a_min=1, a_max=100)
-                #print(extra_odds)
-                extra_odds = 2
-                map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], i] += extra_odds # assign to current channel
-                map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], :] -=  1
-                #1/2 * np.concatenate([extra_odds[...,np.newaxis]]*5, axis=-1) # assign to current channel
-            
+                extra_odds = pcd[3,mask_intensity_idx] - self.pcd_intensity_threshold
+                map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], i] += extra_odds # assign to current channel            
         
         map_local[map_local < -10] = -10
 
