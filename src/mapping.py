@@ -401,25 +401,34 @@ class SemanticMapping:
         # update corresponding labels
 
         for i in range(len(self.catogories)):
-            idx = label[0,:] == self.catogories[i]
+            idx = np.all(label==self.catogories_color[i].reshape(3,1), axis=0)
             idx_mask = np.logical_and(idx, mask)
             
             # suppression
-            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
-            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
+            #map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
+            #map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
             
             # intensity-aware
-            if self.use_pcd_intensity and (i == 1 or i == 2):
-                mask_intensity = pcd[3, :] > self.pcd_intensity_threshold      # mask of high intensity
-                mask_intensity_idx = np.logical_and(mask_intensity, idx_mask)  # mask of current label with high intensity
                 
+            if self.use_pcd_intensity:
+                #mask_intensity = pcd[3, :] > self.pcd_intensity_threshold      # mask of high intensity
+                #mask_intensity_idx = np.logical_and(mask_intensity, idx_mask)  # mask of current label with high intensity
+                mask_intensity_idx = idx_mask
                 # TODO: tune this formula for extra odds
                 # extra_odds added = (i-thred)
-                extra_odds = pcd[3,mask_intensity_idx] - self.pcd_intensity_threshold
+                temperature = 1
+                K = 4
+                threshold = 15
+                B = 1
+                extra_odds = np.clip(B + K * np.exp((pcd[3,mask_intensity_idx] - threshold)/temperature), a_min=1, a_max=100)
+                #print(extra_odds)
+                extra_odds = 2
                 map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], i] += extra_odds # assign to current channel
+                map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], :] -=  1
+                #1/2 * np.concatenate([extra_odds[...,np.newaxis]]*5, axis=-1) # assign to current channel
             
         
-        map_local[map_local < 0] = 0
+        map_local[map_local < -10] = -10
 
         # threshold and normalize
         # map_local[map_local > self.map_value_max] = self.map_value_max
@@ -527,7 +536,7 @@ class SemanticMapping:
 # main
 def main():
     rospy.init_node('semantic_mapping')
-    sm = SemanticMapping(depth_method='points_map')
+    sm = SemanticMapping(depth_method="points_map")
     rospy.spin()
 
 
