@@ -32,7 +32,7 @@ import pickle
 
 # classes
 class SemanticMapping:
-    def __init__(self, discretization = 0.1, boundary = [[-20, 50], [-10, 10]], depth_method='points_map'):
+    def __init__(self, discretization = 0.1, boundary = [[-10, 50], [-10, 10]], depth_method='points_map'):
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
         self.image_sub_cam1 = rospy.Subscriber("/camera1/semantic", Image, self.image_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
@@ -246,6 +246,7 @@ class SemanticMapping:
         
         # map is independent of camera
         self.pub_semantic_local_map.publish(image_pub)
+        rospy.logdebug("Finished Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         
 
     def mapping(self, im_src, pose, cam):
@@ -274,7 +275,7 @@ class SemanticMapping:
         # toc2 = time.time()
         # rospy.loginfo("time: %f s", toc2 - tic)        
 
-        return color_map
+        return color_map_with_car
     
 
     def project_pcd(self, pcd, pcd_frame_id, image, pose, cam):
@@ -405,8 +406,8 @@ class SemanticMapping:
             idx_mask = np.logical_and(idx, mask)
             
             # suppression
-            #map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
-            #map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
+            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
+            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
             
             # intensity-aware
                 
