@@ -19,7 +19,25 @@ Assume that you are using the docker image `astuff_autoware_nvidia`
 
 6. config you semantic segmentation as below instructions
 
-7. The code also subscribe 'plane' from road_estimation, if no received, it will use a fake plane.
+### dependencies
+If you start Autoware, play a rosbag and load the point cloud map, then dependency 1 and 2 will be satisfied.
+
+1. The code requires a ROS package with CAMERA information and localization information.
+
+2. The code requires point map being published. A ROS package 'map_reduction' from AVL repository will extract a local point cloud around the ego vehilcle. 
+
+3. If you are testing the planar assumption method, the code also subscribe 'plane' from road_estimation, if no received, it will use a fake plane.
+
+## Running
+
+1. Source the ros environment and workspace
+2. Load the point cloud map and play the rosbag in Autoware
+3. Run the command
+   ```
+   roslaunch camera1_mapping.launch
+   ```
+   This assumes you have already compiled the 'map_reduction' ROS package
+4. Start Rviz for visualization
 
 ## NODE INFO
 
