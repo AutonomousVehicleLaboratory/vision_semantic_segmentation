@@ -22,9 +22,9 @@ Assume that you are using the docker image `astuff_autoware_nvidia`
 ### dependencies
 If you start Autoware, play a rosbag and load the point cloud map, then dependency 1 and 2 will be satisfied.
 
-1. The code requires a ROS package with CAMERA information and localization information.
+1. The code requires a rosbag with CAMERA information and localization information.
 
-2. The code requires point map being published. A ROS package 'map_reduction' from AVL repository will extract a local point cloud around the ego vehilcle. 
+2. The code requires point map being published. A ROS package 'map_reduction' from AVL repository will extract a local point cloud around the ego vehilcle.
 
 3. If you are testing the planar assumption method, the code also subscribe 'plane' from road_estimation, if no received, it will use a fake plane.
 
