@@ -8,6 +8,7 @@ Date:February 12, 2020
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import pyplot as plt
+import cv2
 
 from plane_3d import Plane3D
 # from point_cloud import PointCloud
@@ -141,9 +142,97 @@ def jacobian_vector_norm(v):
     J = 1. / np.linalg.norm(v) * v.T
     return J
 
+def right_null(A):
+    U, S, VT = np.linalg.svd(A)
+    if S[-1] < 1e-5:
+        return VT.T[:,-1::]
+    else:
+        print("right null space not exists")
+        return None
+
+def show_image_list(image_list, delay=0, size=None):
+    if len(image_list) == 0:
+        return
+    elif len(image_list) == 1:
+        cv2.imshow("image", image_list[0])
+        cv2.waitKey(delay)
+    else:
+        reshaped_list = []
+        if size is None:
+            min_shape_y, min_shape_x = image_list[0].shape
+            for image in image_list:
+                if image.shape[0] < min_shape_y:
+                    min_shape_y = image.shape[0]
+                if image.shape[1] < min_shape_x:
+                    min_shape_x = image.shape[1]
+            for image in image_list:
+                if image.shape[0] != min_shape_y or image.shape[1] != min_shape_x:
+                    reshaped_image = cv2.resize(image, (min_shape_x, min_shape_y), interpolation=cv2.INTER_NEAREST)
+                    reshaped_list.append(reshaped_image)
+                else:
+                    reshaped_list.append(image)
+        else:
+            for image in image_list:
+                if image.shape[0] != size[0] or image.shape[1] != size[1]:
+                    reshaped_image = cv2.resize(image, (size[1], size[0]), interpolation=cv2.INTER_NEAREST)
+                    reshaped_list.append(reshaped_image)
+                else:
+                    reshaped_list.append(image)
+        
+        channel_fixed = []
+        for image in reshaped_list:
+            if len(image.shape) == 2:
+                fixed_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                channel_fixed.append(fixed_image)
+            else:
+                channel_fixed.append(image)
+
+        concatenated = np.concatenate(channel_fixed, axis=1)
+        cv2.imshow("concatenated", concatenated)
+        cv2.waitKey(delay)
+
+def get_rotation_from_angle_2d(angle):
+    R = np.array([
+        [np.cos(angle), -np.sin(angle)],
+        [np.sin(angle), np.cos(angle)]
+    ])
+    return R
+
+
+def test_arg_max():
+    mat = np.array([
+        [
+            [1,2,3],
+            [3,2,1],
+            [2,3,1]
+        ],
+        [
+            [3,3,1],
+            [5,4,2],
+            [7,2,9]
+        ]
+    ])
+    print(mat.shape)
+    mat_argmax = np.argmax(mat, axis=2)
+    print(mat_argmax)
+    mat_new = np.zeros((2,3))
+    print(mat_new)
+    mat_new[mat_argmax == 0] = 77
+    print(mat_new)
+
+def test_queue():
+    import queue
+    q = queue.Queue()
+    q.put(1)
+    print(q)
+    q.put(3)
+    print(q.get())
+
 # main
 def main():
     pass
+    # test_arg_max()
+    # test_queue()
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,6 @@
+import json
 import numpy as np
+import os.path as osp 
 
 from deeplab_v3_plus.data.dataset.mapillary import MapillaryVistas
 from matplotlib import pyplot as plt
@@ -10,8 +12,10 @@ def get_labels(data_dir):
     Args:
         data_dir (str): fetch the label from the data_dir
     """
-    dataset = MapillaryVistas(data_dir, "train")
-    return dataset.labels
+    config_file = data_dir
+    with open(config_file) as f:
+        config = json.load(f)
+    return config["labels"]
 
 
 def display_labels(data_dir, blocking=False):

@@ -1,7 +1,7 @@
 OUTPUT_DIR: "@"
 OUTPUT_NAME: "resnext50_os8"
 TRAIN_DATASET: "Mapillary"
-TRAIN_DATASET_DIR: "ignored"
+DATASET_CONFIG: ""
 MODEL:
   TYPE: "DeepLabv3+"
   BACKBONE: "resnext50_32x4d"

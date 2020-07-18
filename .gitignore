@@ -4,6 +4,10 @@
 network_output_example
 high_res_images
 
-# Ignore all the config file except template.yaml
-config/*.yaml
-!config/template.yaml
+# temp
+tempimage.jpg
+
+# Ignore avl.yaml
+config/avl.yaml
+
+.DS_Store

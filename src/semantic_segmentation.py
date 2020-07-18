@@ -5,9 +5,7 @@ Date:February 14, 2020
 """
 
 # module
-from __future__ import absolute_import, division, print_function, unicode_literals # python2 compatibility
-import numpy as np
-# import cv2
+from __future__ import absolute_import, division, print_function, unicode_literals  # python2 compatibility
 # parameters
 
 import os.path as osp
@@ -16,25 +14,19 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as T
 
-sys.path.insert(0, osp.join(osp.dirname(__file__), "network"))
+sys.path.insert(0, "network")
 
 from deeplab_v3_plus.models.build import build_model
 
 
 # classes
 class SemanticSegmentation():
-    def __init__(self, config_file):
+    def __init__(self, cfg):
         """
 
         Args:
-            config_file: The path to the network configuration file
+            cfg: network configuration
         """
-
-        # load the configuration
-        # import on-the-fly to avoid overwriting cfg
-        from deeplab_v3_plus.config.demo import cfg
-        cfg.merge_from_file(config_file)
-
         self.model = build_model(cfg)[0]
         self.model = nn.DataParallel(self.model).cuda()
 
@@ -67,6 +59,7 @@ class SemanticSegmentation():
             preds = torch.argmax(preds, dim=1).squeeze().cpu().numpy()
             return preds
 
+
 # functions
 
 
@@ -74,12 +67,16 @@ class SemanticSegmentation():
 def main():
     pass
 
+
 if __name__ == "__main__":
     main()
-    network = SemanticSegmentation(config_file=
-    # "/home/qinru/avl/semantic/deeplab/experiments/video_generation/avl.yaml"
-    "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/src/network/experiments/video_generation/avl.yaml"
-    )
+    print(osp.dirname(__file__))
+    from network.deeplab_v3_plus.config.demo import cfg
+
+    config_file = '../config/avl.yaml'
+    cfg.merge_from_file(config_file)
+
+    network = SemanticSegmentation(cfg)
 
     import PIL.Image as Image
     import matplotlib.pyplot as plt
@@ -88,7 +85,7 @@ if __name__ == "__main__":
     image = Image.open(
         # "/home/qinru/avl/semantic/deeplab/data/mapillary-vistas-dataset_public_v1.1_processed/validation/images/0B5qssoIEl6LguVQjoRiDQ.jpg"
         "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/high_res_images/1.jpg"
-        )
+    )
     image = np.array(image)
 
     segmentation = network.segmentation(image)
