@@ -60,7 +60,7 @@ class SemanticMapping:
         Args:
             resolution: The resolution of the occupancy grid, in meter.
             boundary: The boundary of the occupancy grid, in meters. The format of the boundary is
-                [xmin, xmax], [ymin, ymax]
+                [[xmin, xmax], [ymin, ymax]]
             depth_method: This variable defines the way how we estimate the depth from the image. If use
                 "points_map", then we are using the offline point cloud map. If use the points_raw", then we are
                 using the the online point cloud map, i.e. the output from the LiDAR per frame.

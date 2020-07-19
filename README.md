@@ -32,7 +32,7 @@ After log into the container for the first time,
 
 <u>Setup the semantic segmentation network</u>
 
-1. Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Publication-IROS2020`). 
+1. Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Papers-Publications-IROS2020-Semantic Mapping-network-resnext50_os8-run1-model_best.pth`). 
 
 2. Create your local configuration by creating a copy from the template YAML file
 
