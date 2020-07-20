@@ -1,5 +1,6 @@
 .idea
 .vscode
+.DS_Store
 *.pyc
 network_output_example
 high_res_images
@@ -10,4 +11,5 @@ tempimage.jpg
 # Ignore avl.yaml
 config/avl.yaml
 
-.DS_Store
+# Ignore data
+external_data/
