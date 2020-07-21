@@ -2,31 +2,116 @@
 
 This is the source code for the paper [Probabilistic Semantic Mapping for Urban Autonomous Driving Applications](https://arxiv.org/abs/2006.04894). It will fuse the LiDAR point cloud with the semantic segmented 2D camera image together and create a bird's-eye-view semantic map of the environment. 
 
-## Dependencies
+## Set up
 
-If you use Autoware to play a rosbag and load the point cloud map, then dependency 1 and 2 will be satisfied.
+Here we are going to show you how to set up the docker environment in order to develop/run our code. 
 
-1. The code requires a rosbag with CAMERA information and localization information.
+### Prerequisite
 
-2. The code requires point map being published. A ROS package `map_reduction` from AVL repository will extract a local point cloud around the ego vehicle.
+> Warning:  Because we need to use VNC, TurboVNC does not have support for Mac user, so you must use Linux. 
 
-3. If you are testing the planar assumption method, the code also subscribe 'plane' from road_estimation, if no received, it will use a fake plane.
+We are going to use `astuff_autoware_nvidia` docker image as our primary develop environment. Please follow the instruction in the [dockerlogin](https://github.com/CogRob/internal_docs/blob/master/cogrob_dockerlogin.md) to learn how to set up this docker environment. 
 
-## Set Up
+We are using Autoware to create the ROS environment where our code depends on. To run Autoware, we need to set up VNC viewer to create a graphical interface with our docker container. Please follow the instruction in the [cluster_vnc](https://github.com/CogRob/internal_docs/blob/master/cluster_vnc.md) to learn how to set up this VNC. 
 
-Docker environment: we are going to use the `astuff_autoware_nvidia` docker image as our primary develop environment. 
+Now we assume that you are inside the docker container and can view the container via VNC. 
 
-This code has been tested in ROS 1, Kinetic version. 
+### Step 1. Build Autoware
 
-After log into the container for the first time,
+The pre-installed Autoware in the container does not suit with our development environment. We need to use our modified version of Autoware_v1.8. The source code is [here](https://github.com/AutonomousVehicleLaboratory/Autoware_v1.8). We will create a workspace and install the package here. 
 
-1. Clone this repository in the src folder of a catkin workspace
-2. Run `bash ./setup.sh` in the root directory to setup python packages (inside virtual environment if you want)
-3. Add ros into your bash path: `source /opt/ros/kinetic/setup.bash` for convenience
-4. Go to your workspace, run `catkin_make`
-   - If you have dependencies in other catkin workspace, source them before running `catkin_make`
-5. Source your setup file in `devel` directory of your catkin workspace (`source devel/setup.bash`)
-6. Adjust the configuration of the semantic segmentation network as instructed in the next section. 
+```sh
+mkdir -p ~/codebase
+cd ~/codebase
+
+git clone https://github.com/AutonomousVehicleLaboratory/Autoware_v1.8
+
+# Then we need to source the ros environment in order to build the Autoware
+source /opt/ros/kinetic/setup.bash
+
+# Build Autoware
+cd Autoware_v1.8/ros
+./catkin_make_release
+```
+
+### Step 2. Build ROS Packages
+
+Now we need to create a local ROS workstation, and save all our ROS code there. 
+
+The ROS packages we need are 
+
+1. [map_reduction](https://github.com/AutonomousVehicleLaboratory/map_reduction). This package will extract a local point cloud around the ego vehicle.
+2. [out code](https://github.com/AutonomousVehicleLaboratory/vision_semantic_segmentation)
+
+```sh
+mkdir -p ~/codebase/ros_workspace/src
+cd ~/codebase/ros_workspace/src
+
+# Initialize the workspace
+catkin_init_workspace
+
+git clone https://github.com/AutonomousVehicleLaboratory/map_reduction.git
+git clone https://github.com/AutonomousVehicleLaboratory/vision_semantic_segmentation.git
+
+# Build the code
+cd .. 
+catkin_make
+```
+
+### Step 3. Run Autoware
+
+We have finished the installation of Autoware in step 1. Now we will show you how to load the data into Autoware and run it.
+
+Now let's first install some dependency so that we can run the Autoware more smoothly. 
+
+```sh
+sudo apt update
+sudo apt install gnome-terminal
+```
+
+To run the Autoware, we need to open three terminals. We provide to help you do that automatically. It will also create a new terminal for you to play around with your code. **Note that you have to run this scripts inside the VNC.** (Because Autoware need GUI supports.)
+
+```sh
+# In the VNC
+cd ~/codebase/ros_workspace/src
+bash ./vision_semantic_segmentation/scripts/launch_autoware.sh
+```
+
+Now we need to load the point cloud map. Go to the third Tab `Map` in the Runtime Manager. In the first row where you see the "Point Cloud". Paste the following path into the blank bar. 
+
+```
+/mnt/avl_shared/selected-mail-route-data/mail-route-ds.pcd
+```
+
+Then click the PointCloud to load the map. 
+
+![image](doc/fig/load_point_cloud_map.png)
+
+Now go to the `Simulation` Tab, load the following rosbag and Click "Play". Now the rosbag should be load into the ros messaging system. 
+
+```
+/mnt/avl_shared/calibration/camera-lidar/0026-Calibration/02-12-2020/rosbags/2020-02-12-12-54-09.bag
+```
+
+![load_rosbag](doc/fig/load_rosbag.png)
+
+You can open RViz to view the output image. We provide a default configuration for the RViz in the `scripts/default.rviz`. 
+
+### Step 4. Run our code 
+
+> Note: For this part of the code, you don't have to run inside the VNC. 
+
+Now the Autoware is running and the rosbag has been loaded into the ROS, we are now ready to run our code and start building the semantic map of the environment. 
+
+```
+cd ~/codebase/ros_workspace
+source devel/setup.bash
+roslaunch vision_semantic_segmentation camera1_mapping.launch
+```
+
+
+
+TODO: Add instruction for the semantic segmentation network. 
 
 
 
@@ -44,21 +129,11 @@ After log into the container for the first time,
 
 4. Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
 
-## To Run
 
-1. Source the ros environment and workspace
 
-2. Load the point cloud map and play the rosbag in Autoware
 
-3. Run the command
 
-   ```
-   roslaunch camera1_mapping.launch
-   ```
 
-   This assumes you have already compiled the 'map_reduction' ROS package
-
-4. Start Rviz for visualization
 
 ## ROS Node Information 
 
