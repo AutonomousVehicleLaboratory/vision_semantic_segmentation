@@ -8,7 +8,7 @@ Here we are going to show you how to set up the docker environment in order to d
 
 ### Prerequisite
 
-> Warning:  Because we need to use VNC, TurboVNC does not have support for Mac user, so you must use Linux. 
+> Warning:  Because we need to use VNC, TurboVNC does not have support for Mac user, so you must use Linux system. 
 
 We are going to use `astuff_autoware_nvidia` docker image as our primary develop environment. Please follow the instruction in the [dockerlogin](https://github.com/CogRob/internal_docs/blob/master/cogrob_dockerlogin.md) to learn how to set up this docker environment. 
 
@@ -103,8 +103,12 @@ You can open RViz to view the output image. We provide a default configuration f
 
 Now the Autoware is running and the rosbag has been loaded into the ROS, we are now ready to run our code and start building the semantic map of the environment. 
 
-```
+```sh
 cd ~/codebase/ros_workspace
+
+# Install the python package
+pip install -r vision_semantic_segmentation/requirements.txt --user
+
 source devel/setup.bash
 roslaunch vision_semantic_segmentation camera1_mapping.launch
 ```
@@ -129,11 +133,27 @@ TODO: Add instruction for the semantic segmentation network.
 
 4. Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
 
+### TL;DR
 
+We provide a script for you to automatically setup this development environment. Here is what you need to do
 
+```sh
+mkdir -p ~/codebase/ros_workspace/src
+cd ~/codebase/ros_workspace/src
 
+git clone https://github.com/AutonomousVehicleLaboratory/vision_semantic_segmentation.git
 
+# Run the script
+# You may need to type in your github account multiple time
+bash ~/codebase/ros_workspace/src/vision_semantic_segmentation/scripts/initialize_dev_env.sh
+```
 
+Then the only thing you need to do is launch Autoware in Step 3 and 
+
+```sh
+source ~/codebase/ros_workspace/devel/setup.bash
+roslaunch vision_semantic_segmentation camera1_mapping.launch
+```
 
 ## ROS Node Information 
 
