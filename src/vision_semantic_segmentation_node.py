@@ -37,6 +37,7 @@ class VisionSemanticSegmentationNode:
 
     def __init__(self):
         # Set up ros message subscriber
+        # Note that topics ".../image_raw" are created by the launch file
         self.image_sub_cam1 = rospy.Subscriber("/camera1/image_raw", Image, self.image_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.image_callback)
         self.plane_sub = rospy.Subscriber("/estimated_plane", Plane, self.plane_callback)
@@ -69,6 +70,7 @@ class VisionSemanticSegmentationNode:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
             print(e)
+            return
             # TODO: image_in will be undefined if this exception raises.
 
         ## ========== Image preprocessing
@@ -102,11 +104,14 @@ class VisionSemanticSegmentationNode:
 
         ## ========== Visualize semantic images
         # Convert network label to color
-        # Note: colored_ouptput is in the RGB format, if you visualize it in the opencv, you should convert it to the
-        # BGR format.
         colored_output = self.seg_color_fn(image_out, self.seg_color_ref)
         colored_output = np.squeeze(colored_output)
         colored_output = colored_output.astype(np.uint8)
+
+        # Note: colored_ouptput is in the RGB format, if you visualize it in the opencv, you should convert it to the
+        # BGR format. This is a mistake made before our publication, and by doing so we need to update all our color
+        # which is a lot of work, so we don't do it.
+        # colored_output = cv2.cvtColor(colored_output, cv2.COLOR_RGB2BGR)
 
         try:
             image_pub = self.bridge.cv2_to_imgmsg(colored_output, encoding="passthrough")
@@ -187,7 +192,6 @@ class VisionSemanticSegmentationNode:
     def plane_callback(self, msg):
         self.plane = Plane3D(msg.coef[0], msg.coef[1], msg.coef[2], msg.coef[3])
         self.plane_last_update_time = rospy.get_rostime()
-        # print("plane received: ", self.plane.param.T)
 
 
 # main
