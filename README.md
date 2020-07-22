@@ -69,7 +69,7 @@ sudo apt update
 sudo apt install gnome-terminal
 ```
 
-To run the Autoware, we need to open three terminals. We provide to help you do that automatically. It will also create a new terminal for you to play around with your code. **Note that you have to run this scripts inside the VNC.** (Because Autoware need GUI supports.)
+**(If you are using the automatic script to build the environment, this is where you should start)**. To run the Autoware, we need to open three terminals. We provide to help you do that automatically. It will also create a new terminal for you to play around with your code. **Note that you have to run this scripts inside the VNC.** (Because Autoware need GUI supports.)
 
 ```sh
 # In the VNC
@@ -113,25 +113,25 @@ source devel/setup.bash
 roslaunch vision_semantic_segmentation camera1_mapping.launch
 ```
 
+Now we need to set up the configuration for the semantic segmentation network. 
 
-
-TODO: Add instruction for the semantic segmentation network. 
-
-
-
-<u>Setup the semantic segmentation network</u>
+> We have saved the network weight in the `/mnt/avl_shared/qinru/iros2020/resnext50_os8`, you don't have to download it if you are using the cluster. 
 
 1. Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Papers-Publications-IROS2020-Semantic Mapping-network-resnext50_os8-run1-model_best.pth`). 
 
 2. Create your local configuration by creating a copy from the template YAML file
 
    ```
+   # In the root directory 
+   cd ~/codebase/ros_workspace/src/vision_semantic_segmentation
+   
    cp config/template.yaml config/avl.yaml
    ```
 
-3. Open `config/avl.yaml` and set the `MODEL.WEIGHT` as the path to the trained weight. Set the `DATASET_CONFIG` to the path to the configuration file of the dataset so that you can visualize the semantic output in color, it is in the `config/class_19.json` in this repository.  
-
-4. Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
+3. Make sure the configuration of `config/avl.yaml` is set up correctly. We have already provide the default value, but you may want to change it. 
+   *  `MODEL.WEIGHT` corresponds to the path to the trained weight.
+   * `DATASET_CONFIG` corresponds to the path to the configuration file of the dataset so that you can visualize the semantic output in color, it is the `config/class_19.json` in this repository.  
+   * Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
 
 ### TL;DR
 
@@ -144,11 +144,11 @@ cd ~/codebase/ros_workspace/src
 git clone https://github.com/AutonomousVehicleLaboratory/vision_semantic_segmentation.git
 
 # Run the script
-# You may need to type in your github account multiple time
+# You may need to type in your github account multiple times
 bash ~/codebase/ros_workspace/src/vision_semantic_segmentation/scripts/initialize_dev_env.sh
 ```
 
-Then the only thing you need to do is launch Autoware in Step 3 and 
+Then the only thing you need to do is launch Autoware by following Step 3 and 
 
 ```sh
 source ~/codebase/ros_workspace/devel/setup.bash

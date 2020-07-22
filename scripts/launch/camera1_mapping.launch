@@ -8,6 +8,4 @@
     <arg name="camera_right_id" default="camera6"/>
     <node name="republisher_$(arg camera_left_id)" type="republish" pkg="image_transport" output="screen" args="compressed in:=/avt_cameras/$(arg camera_left_id)/image_color raw out:=$(arg camera_left_id)/image_raw" />
 
-    <!-- <node name="republisher_$(arg camera_right_id)" type="republish" pkg="image_transport" output="screen" args="compressed in:=/avt_cameras/$(arg camera_right_id)/image_color raw out:=$(arg camera_right_id)/image_raw" /> -->
-
 </launch>
