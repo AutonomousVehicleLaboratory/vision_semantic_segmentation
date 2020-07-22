@@ -1,61 +1,127 @@
-# Semantic Segmentation Node
+# Probabilistic Semantic Mapping
 
-## Setup
+This is the source code for the paper [Probabilistic Semantic Mapping for Urban Autonomous Driving Applications](https://arxiv.org/abs/2006.04894). It will fuse the LiDAR point cloud with the semantic segmented 2D camera image together and create a bird's-eye-view semantic map of the environment. 
 
-Assume that you are using the docker image `astuff_autoware_nvidia` 
+## Set up
 
-0. prerequisite, ROS, this code has been tested with ROS Kinetic.
+Here we are going to show you how to set up the docker environment in order to develop/run our code. 
 
-1. clone this repository to a src folder of a catkin workspace
+### Prerequisite
 
-2. Run `bash ./setup.sh` in the root directory to setup python packages (inside virtual environment if you want)
+> Warning:  Because we need to use VNC, TurboVNC does not have support for Mac user, so you must use Linux system. 
 
-3. source ros (Add ros into your bash path `source /opt/ros/kinetic/setup.bash` for convenience)
+We are going to use `astuff_autoware_nvidia` docker image as our primary develop environment. Please follow the instruction in the [dockerlogin](https://github.com/CogRob/internal_docs/blob/master/cogrob_dockerlogin.md) to learn how to set up this docker environment. 
 
-4. go to your workspace, run `catkin_make`
-   - If you have dependencies in other catkin workspace, source them before running `catkin_make`
+We are using Autoware to create the ROS environment where our code depends on. To run Autoware, we need to set up VNC viewer to create a graphical interface with our docker container. Please follow the instruction in the [cluster_vnc](https://github.com/CogRob/internal_docs/blob/master/cluster_vnc.md) to learn how to set up this VNC. 
 
-5. source your setup file in devel directory of your catkin workspace (`source devel/setup.bash`)
+Now we assume that you are inside the docker container and can view the container via VNC. 
 
-6. config you semantic segmentation as below instructions
+### Step 1. Build Autoware
 
-### dependencies
-If you start Autoware, play a rosbag and load the point cloud map, then dependency 1 and 2 will be satisfied.
+The pre-installed Autoware in the container does not suit with our development environment. We need to use our modified version of Autoware_v1.8. The source code is [here](https://github.com/AutonomousVehicleLaboratory/Autoware_v1.8). We will create a workspace and install the package here. 
 
-1. The code requires a rosbag with CAMERA information and localization information.
+```sh
+mkdir -p ~/codebase
+cd ~/codebase
 
-2. The code requires point map being published. A ROS package 'map_reduction' from AVL repository will extract a local point cloud around the ego vehilcle.
+git clone https://github.com/AutonomousVehicleLaboratory/Autoware_v1.8
 
-3. If you are testing the planar assumption method, the code also subscribe 'plane' from road_estimation, if no received, it will use a fake plane.
+# Then we need to source the ros environment in order to build the Autoware
+source /opt/ros/kinetic/setup.bash
 
-## Running
+# Build Autoware
+cd Autoware_v1.8/ros
+./catkin_make_release
+```
 
-1. Source the ros environment and workspace
-2. Load the point cloud map and play the rosbag in Autoware
-3. Run the command
-   ```
-   roslaunch camera1_mapping.launch
-   ```
-   This assumes you have already compiled the 'map_reduction' ROS package
-4. Start Rviz for visualization
+### Step 2. Build ROS Packages
 
-## NODE INFO
+Now we need to create a local ROS workstation, and save all our ROS code there. 
 
-Input: \
-type: sensor_msgs.msg Image \
-topic: /camera{id}/image_raw
+The ROS packages we need are 
 
-Output: \
-type: sensor_msgs.msg Image \
-topic: /camera{id}/semantic
+1. [map_reduction](https://github.com/AutonomousVehicleLaboratory/map_reduction). This package will extract a local point cloud around the ego vehicle.
+2. [out code](https://github.com/AutonomousVehicleLaboratory/vision_semantic_segmentation)
 
-Notice: this input topic is not published by vehicle, it is from vision_darknet_detect/launch/vision_yolo3_detect.launch, there a image_transport decode the compressed image to image_raw. We need to find another place to do this so that there is no dependency on that.
+```sh
+mkdir -p ~/codebase/ros_workspace/src
+cd ~/codebase/ros_workspace/src
 
-## Semantic Segmentation
+# Initialize the workspace
+catkin_init_workspace
 
-### Run the semantic segmentation network
+git clone https://github.com/AutonomousVehicleLaboratory/map_reduction.git
+git clone https://github.com/AutonomousVehicleLaboratory/vision_semantic_segmentation.git
 
-1. Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Publication-IROS2020`). 
+# Build the code
+cd .. 
+catkin_make
+```
+
+### Step 3. Run Autoware
+
+We have finished the installation of Autoware in step 1. Now we will show you how to load the data into Autoware and run it.
+
+Now let's first install some dependency so that we can run the Autoware more smoothly. 
+
+```sh
+sudo apt update
+sudo apt install gnome-terminal
+```
+
+To run the Autoware, we need to open three terminals. We provide to help you do that automatically. It will also create a new terminal for you to play around with your code. **Note that you have to run this scripts inside the VNC.** (Because Autoware need GUI supports.)
+
+```sh
+# In the VNC
+cd ~/codebase/ros_workspace/src
+bash ./vision_semantic_segmentation/scripts/launch_autoware.sh
+```
+
+Now we need to load the point cloud map. Go to the third Tab `Map` in the Runtime Manager. In the first row where you see the "Point Cloud". Paste the following path into the blank bar. 
+
+```
+/mnt/avl_shared/selected-mail-route-data/mail-route-ds.pcd
+```
+
+Then click the PointCloud to load the map. 
+
+![image](doc/fig/load_point_cloud_map.png)
+
+Now go to the `Simulation` Tab, load the following rosbag and Click "Play". Now the rosbag should be load into the ros messaging system. 
+
+```
+/mnt/avl_shared/calibration/camera-lidar/0026-Calibration/02-12-2020/rosbags/2020-02-12-12-54-09.bag
+```
+
+![load_rosbag](doc/fig/load_rosbag.png)
+
+You can open RViz to view the output image. We provide a default configuration for the RViz in the `scripts/default.rviz`. 
+
+### Step 4. Run our code 
+
+> Note: For this part of the code, you don't have to run inside the VNC. 
+
+Now the Autoware is running and the rosbag has been loaded into the ROS, we are now ready to run our code and start building the semantic map of the environment. 
+
+```sh
+cd ~/codebase/ros_workspace
+
+# Install the python package
+pip install -r vision_semantic_segmentation/requirements.txt --user
+
+source devel/setup.bash
+roslaunch vision_semantic_segmentation camera1_mapping.launch
+```
+
+
+
+TODO: Add instruction for the semantic segmentation network. 
+
+
+
+<u>Setup the semantic segmentation network</u>
+
+1. Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Papers-Publications-IROS2020-Semantic Mapping-network-resnext50_os8-run1-model_best.pth`). 
 
 2. Create your local configuration by creating a copy from the template YAML file
 
@@ -67,6 +133,67 @@ Notice: this input topic is not published by vehicle, it is from vision_darknet_
 
 4. Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
 
+### TL;DR
+
+We provide a script for you to automatically setup this development environment. Here is what you need to do
+
+```sh
+mkdir -p ~/codebase/ros_workspace/src
+cd ~/codebase/ros_workspace/src
+
+git clone https://github.com/AutonomousVehicleLaboratory/vision_semantic_segmentation.git
+
+# Run the script
+# You may need to type in your github account multiple time
+bash ~/codebase/ros_workspace/src/vision_semantic_segmentation/scripts/initialize_dev_env.sh
+```
+
+Then the only thing you need to do is launch Autoware in Step 3 and 
+
+```sh
+source ~/codebase/ros_workspace/devel/setup.bash
+roslaunch vision_semantic_segmentation camera1_mapping.launch
+```
+
+## ROS Node Information 
+
+`vision_semantic_segmentation_node.py`  is 
+
+Subscribing
+
+```
+type: sensor_msgs.msg Image \
+topic: /camera{id}/image_raw
+```
+
+Publishing
+
+```
+type: sensor_msgs.msg Image \
+topic: /camera{id}/semantic
+```
+
+`mapping.py` is 
+
+Subscribing
+
+```
+type: sensor_msgs.msg Image \
+topic: /camera{id}/semantic
+
+type: 
+topic: /reduced_map
+
+type: 
+topic: /points_raw
+```
+
+Publishing
+
+```
+topic: /semantic_local_map
+topic: /semantic_point_cloud
+```
 
 ## TODO
 
@@ -75,3 +202,7 @@ Notice: this input topic is not published by vehicle, it is from vision_darknet_
 - [x] integration test with Autoware
 - [ ] record frequency and delay
 - [ ] semantic mapping
+
+## Credits
+
+Author: David, Henry, Qinru, Hao. 

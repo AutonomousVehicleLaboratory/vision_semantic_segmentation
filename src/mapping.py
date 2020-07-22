@@ -47,7 +47,6 @@ def profile(fnc):
     return inner
 
 
-# classes
 class SemanticMapping:
     """
     Create a semantic bird's eye view map from the LiDAR sensor and 2D semantic segmentation image. The BEV map is
@@ -60,7 +59,8 @@ class SemanticMapping:
 
         Args:
             resolution: The resolution of the occupancy grid, in meter.
-            boundary: The boundary of the occupancy grid, in meters. TODO: explain the number
+            boundary: The boundary of the occupancy grid, in meters. The format of the boundary is
+                [[xmin, xmax], [ymin, ymax]]
             depth_method: This variable defines the way how we estimate the depth from the image. If use
                 "points_map", then we are using the offline point cloud map. If use the points_raw", then we are
                 using the the online point cloud map, i.e. the output from the LiDAR per frame.
@@ -88,15 +88,15 @@ class SemanticMapping:
         self.bridge = CvBridge()
 
         self.pose = None
-        self.pose_queue = []  # TODO: Use deque is better here.
+        self.pose_queue = []
         self.pose_time = None
         self.cam1 = camera_setup_1()
         self.cam6 = camera_setup_6()
         rospy.logwarn("currently only for front view")
         self.pcd = None
         self.pcd_frame_id = None
-        self.pcd_queue = []  # TODO: Use deque is better here.
-        self.pcd_header_queue = []  # TODO: Use deque is better here.
+        self.pcd_queue = []
+        self.pcd_header_queue = []
         self.pcd_time = None
         self.pcd_intensity_threshold = 15
         self.use_pcd_intensity = True
@@ -107,9 +107,9 @@ class SemanticMapping:
         self.resolution = resolution  # Grid resolution in meters
         self.map_value_max = 10  # prevent over confidence (deprecated)
         self.map_decay = 4  # prevent over confidence
-        self.b_render_map = False  # only render large map at last
-        self.catogories = [128, 140, 255, 107, 244]  # values of labels in the input images of mapping
-        self.catogories_color = np.array([
+        self.render_map_only = False  # only render large map at last
+        self.categories = [128, 140, 255, 107, 244]  # values of labels in the input images of mapping
+        self.categories_color = np.array([
             [128, 64, 128],  # road
             [140, 140, 200],  # crosswalk
             [255, 255, 255],  # lane
@@ -118,7 +118,7 @@ class SemanticMapping:
         ])
         self.map_width = int((boundary[0][1] - boundary[0][0]) / self.resolution)
         self.map_height = int((boundary[1][1] - boundary[1][0]) / self.resolution)
-        self.map_depth = len(self.catogories)
+        self.map_depth = len(self.categories)
 
         self.position_rel = np.array([[0, 0, 0]]).T
         self.yaw_rel = 0
@@ -174,13 +174,25 @@ class SemanticMapping:
         self.pcd_header_queue.append(msg.header)
         self.pcd_frame_id = msg.header.frame_id
 
-    def update_pcd(self, stamp):
-        """ update self.pcd with the closest one in the queue """
+    def update_pcd(self, target_stamp):
+        """
+        Find the closest point cloud wrt the target_stamp
+
+        We first want to find the smallest stamp that is larger than the timestamp, then compare it with the
+        largest stamp that is smaller than the timestamp. and then pick the smallest one as the result. If such
+        condition does not exist, i.e. all the stamps are smaller than the time stamp, we just pick the latest one.
+
+        Args:
+            target_stamp:
+
+        Returns:
+
+        """
         for i in range(len(self.pcd_header_queue) - 1):
-            if self.pcd_header_queue[i + 1].stamp > stamp:
-                if self.pcd_header_queue[i].stamp < stamp:
-                    diff_2 = self.pcd_header_queue[i + 1].stamp - stamp
-                    diff_1 = stamp - self.pcd_header_queue[i].stamp
+            if self.pcd_header_queue[i + 1].stamp > target_stamp:
+                if self.pcd_header_queue[i].stamp < target_stamp:
+                    diff_2 = self.pcd_header_queue[i + 1].stamp - target_stamp
+                    diff_1 = target_stamp - self.pcd_header_queue[i].stamp
                     if diff_1 > diff_2:
                         header = self.pcd_header_queue[i + 1]
                         pcd = self.pcd_queue[i + 1]
@@ -194,7 +206,7 @@ class SemanticMapping:
         header = self.pcd_header_queue[-1]
         pcd = self.pcd_queue[-1]
         self.pcd_header_queue = self.pcd_header_queue[-1::]
-        self.pcd_queue = self.pcd_queue[-1::]  # TODO: If your deque, this line can simply becomes self.pcd_queue.pop
+        self.pcd_queue = self.pcd_queue[-1::]
         rospy.logdebug("Setting current pcd at: %d.%09ds", header.stamp.secs, header.stamp.nsecs)
         return pcd, header.stamp
 
@@ -202,34 +214,28 @@ class SemanticMapping:
         rospy.logdebug("Getting pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         self.pose_queue.append(msg)
         if msg.header.stamp.secs == 1581541270:  # 1581541437: TODO: explain the magic number here
-            self.b_render_map = True
+            self.render_map_only = True
         rospy.logdebug("Pose queue length: %d", len(self.pose_queue))
-        # T, trans, rot, euler = get_transformation(frame_from='/velodyne', frame_to='/base_link')
-
-    # def update_map_pose(self):
-    #     Pose()
-    #     if self.map_pose is None:
-    #         self.map_pose = self.pose
-    #         set_map_pose(self.pose, '/world', '/local_map')
-    #     else:
-    #         set_map_pose(self.map_pose, '/world', '/local_map')
-    #         # get_transformation(tf_listener=self.tf_listener, tf_ros=self.tf_ros)
 
     def set_global_map_pose(self):
         pose = Pose()
-        pose.position.x = -1369.0496826171875  # TODO: These numbers need explaination
+        pose.position.x = -1369.0496826171875  # TODO: These numbers need explanation
         pose.position.y = -562.84814453125
         pose.position.z = 0.0
         pose.orientation.w = 1.0
         set_map_pose(pose, '/world', 'global_map')
 
-    def update_pose(self, stamp):
-        """ update self.pose with the closest one in the queue """
+    def update_pose(self, target_stamp):
+        """
+        Find the closest pose wrt the target_stamp.
+
+        This is the same implementation as the update_pcd().
+        """
         for i in range(len(self.pose_queue) - 1):
-            if self.pose_queue[i + 1].header.stamp > stamp:
-                if self.pose_queue[i].header.stamp < stamp:
-                    diff_2 = self.pose_queue[i + 1].header.stamp - stamp
-                    diff_1 = stamp - self.pose_queue[i].header.stamp
+            if self.pose_queue[i + 1].header.stamp > target_stamp:
+                if self.pose_queue[i].header.stamp < target_stamp:
+                    diff_2 = self.pose_queue[i + 1].header.stamp - target_stamp
+                    diff_1 = target_stamp - self.pose_queue[i].header.stamp
                     if diff_1 > diff_2:
                         msg = self.pose_queue[i + 1]
                     else:
@@ -245,8 +251,8 @@ class SemanticMapping:
     # @profile
     def image_callback(self, msg):
         """
-        The call back function for the camera image. When a new camera image is published, this function will be
-        invoked.
+        The callback function for the camera image. When the semantic camera image is published, this function will be
+        invoked and generate a BEV semantic map from the image.
         """
         rospy.logdebug("Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         try:
@@ -262,18 +268,14 @@ class SemanticMapping:
             rospy.logwarn("cannot find camera for frame_id %s", msg.header.frame_id)
 
         if self.depth_method in ['points_map', 'points_raw']:
-            if len(self.pcd_header_queue) == 0:
-                return
+            if len(self.pcd_header_queue) == 0: return
             self.pcd, self.pcd_time = self.update_pcd(msg.header.stamp)
 
-        if len(self.pose_queue) == 0:
-            return
+        if len(self.pose_queue) == 0: return
         self.pose, self.pose_time = self.update_pose(msg.header.stamp)
         self.set_global_map_pose()
 
-        ## =========== Mapping
         color_map = self.mapping(image_in, self.pose, cam)
-
         if color_map is not None:
             try:
                 image_pub = self.bridge.cv2_to_imgmsg(color_map, encoding="passthrough")
@@ -285,39 +287,41 @@ class SemanticMapping:
             rospy.logdebug("Finished Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
             rospy.signal_shutdown('Done with the mapping')
 
-    def mapping(self, im_src, pose, cam):
+    def mapping(self, semantic_image, pose, cam):
         """
 
         Args:
-            im_src:
+            semantic_image:
             pose:
             cam:
 
         Returns:
 
         """
+        # Initialize the map
         if self.map is None:
             self.map = np.zeros((self.map_height, self.map_width, self.map_depth))
-            transform_matrix, trans, rot, euler = get_transformation(frame_from='/base_link', frame_to='/global_map',
-                                                                     time_from=self.pose_time, time_to=rospy.Time(0),
-                                                                     static_frame='/world',
-                                                                     tf_listener=self.tf_listener, tf_ros=self.tf_ros)
+            transform_matrix, trans, rot, euler = get_transformation(
+                frame_from='/base_link', frame_to='/global_map',
+                time_from=self.pose_time, time_to=rospy.Time(0),
+                static_frame='/world', tf_listener=self.tf_listener, tf_ros=self.tf_ros,
+            )
             self.position_rel = np.array([[trans[0], trans[1], trans[2]]]).T
             self.yaw_rel = euler[2]
 
         if self.depth_method in ['points_map', 'points_raw']:
-            pcd_in_range, pcd_label = self.project_pcd(self.pcd, self.pcd_frame_id, im_src, pose, cam)
+            pcd_in_range, pcd_label = self.project_pcd(self.pcd, self.pcd_frame_id, semantic_image, pose, cam)
             updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
             pcd_pub = create_point_cloud(pcd_in_range[0:3].T, pcd_label.T, frame_id=self.pcd_frame_id)
             self.pub_pcd.publish(pcd_pub)
         else:
-            updated_map = self.update_map_planar(self.map, im_src, cam)
+            updated_map = self.update_map_planar(self.map, semantic_image, cam)
 
         self.map = updated_map
-        # generate color map
-        if self.b_render_map:
-            color_map = color_map_local(updated_map, self.catogories, self.catogories_color)
-            color_map_with_car = self.add_car_to_map(np.array(color_map))
+        # Generate color map
+        if self.render_map_only:
+            color_map = color_map_local(updated_map, self.categories, self.categories_color)
+            # color_map_with_car = self.add_car_to_map(np.array(color_map))
             self.colored_map = color_map
             print("writing image here")
             cv2.imwrite('/home/henry/Pictures/global_map.png', color_map)
@@ -327,31 +331,30 @@ class SemanticMapping:
             return None
 
     def project_pcd(self, pcd, pcd_frame_id, image, pose, cam):
-        """ extract labels of each point in the pcd from image 
+        """
+        Extract labels of each point in the pcd from image
         
         Params:
-            P_norm: camera extrinsics
+            cam: camera calibration information, it includes the camera projection matrix.
         Return:
             labels
         """
         if pcd is None:
             return
         if pcd_frame_id != "velodyne":
-            # pcd = pcd[:,pcd[0,:]!=0]
-
             T_base_to_origin = get_transform_from_pose(pose)
             T_origin_to_velodyne = np.linalg.inv(np.matmul(T_base_to_origin, self.T_velodyne_to_basklink))
 
-            pcd_velody = np.matmul(T_origin_to_velodyne, homogenize(pcd[0:3, :]))
+            pcd_velodyne = np.matmul(T_origin_to_velodyne, homogenize(pcd[0:3, :]))
         else:
-            pcd_velody = homogenize(pcd[0:3, :])
+            pcd_velodyne = homogenize(pcd[0:3, :])
 
-        IXY = dehomogenize(np.matmul(cam.P, pcd_velody)).astype(np.int32)
+        IXY = dehomogenize(np.matmul(cam.P, pcd_velodyne)).astype(np.int32)
 
-        mask_positive = pcd_velody[0, :] > 0
+        mask_positive = pcd_velodyne[0, :] > 0  # Only use the points in the front.
         mask = np.logical_and(np.logical_and(0 <= IXY[0, :], IXY[0, :] < image.shape[1]),
                               np.logical_and(0 <= IXY[1, :], IXY[1, :] < image.shape[0]))
-        mask = np.logical_and(mask, mask_positive)  # enforce only use points in the front
+        mask = np.logical_and(mask, mask_positive)
 
         # mask_intensity = pcd[3, :] > self.pcd_intensity_threshold
         # mask = np.logical_and(mask_intensity, mask)
@@ -428,7 +431,9 @@ class SemanticMapping:
 
     def update_map(self, map_local, pcd, label):
         """
-        Project the point cloud on the map
+        Project the semantic point cloud on the BEV map
+
+        TODO: This is the key part of our algorithm. Think about how to improve this.
 
         Args:
             map_local:
@@ -442,15 +447,16 @@ class SemanticMapping:
         normal = np.array([[0.0, 0.0, 1.0]]).T
         # T_local_to_world = get_transform_from_pose(self.map_pose)
         # T_world_to_local = np.linalg.inv(T_local_to_world)
-        T_pcd_to_local, _, _, _ = get_transformation(frame_from=self.pcd_frame_id, time_from=self.pcd_time,
-                                                     frame_to='/global_map', time_to=rospy.Time(0),
-                                                     static_frame='world',
-                                                     tf_listener=self.tf_listener, tf_ros=self.tf_ros)
+        T_pcd_to_local, _, _, _ = get_transformation(
+            frame_from=self.pcd_frame_id, time_from=self.pcd_time,
+            frame_to='/global_map', time_to=rospy.Time(0),
+            static_frame='world', tf_listener=self.tf_listener, tf_ros=self.tf_ros,
+        )
         print("pcd limits", np.min(pcd[0]), np.max(pcd[0]), np.min(pcd[1]), np.max(pcd[1]), )
         pcd_local = np.matmul(T_pcd_to_local, homogenize(pcd[0:3]))[0:3, :]
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
 
-        # Discrtize point cloud into grid
+        # Discretize point cloud into grid
         pcd_pixel = np.matmul(self.discretize_matrix, homogenize(pcd_on_map[0:2, :])).astype(np.int32)
         print("pcd_pixel limits", np.min(pcd_pixel[0]), np.max(pcd_pixel[0]),
               np.min(pcd_pixel[1]), np.max(pcd_pixel[1]))
@@ -458,16 +464,16 @@ class SemanticMapping:
                               np.logical_and(0 <= pcd_pixel[1, :], pcd_pixel[1, :] < self.map_height))
 
         # Update corresponding labels
-        for i in range(len(self.catogories)):
-            idx = np.all(label == self.catogories_color[i].reshape(3, 1), axis=0)
+        for i in range(len(self.categories)):
+            idx = np.all(label == self.categories_color[i].reshape(3, 1), axis=0)
             idx_mask = np.logical_and(idx, mask)
 
-            # suppression
-            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2  # if (i == 1 or i == 2) else 2
+            # For each cell, the count in this class will add by 2 and the count of another will be decreased by 1.
+            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
             # map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
 
-            # intensity-aware
-            if self.use_pcd_intensity and (i == 1 or i == 2):
+            # Intensity-aware
+            if self.use_pcd_intensity and (i == 1 or i == 2):  # i==1 is crosswalk, i==2 is the land.
                 mask_intensity = pcd[3, :] > self.pcd_intensity_threshold  # mask of high intensity
                 # map_local[pcd_pixel[1, mask_intensity], pcd_pixel[0, mask_intensity], i] += 1000 # only intensity
                 mask_intensity_idx = np.logical_and(mask_intensity,
@@ -489,7 +495,7 @@ class SemanticMapping:
         return map_local
 
     def update_map_planar(self, map_local, image, cam):
-        """ project the semantic image onto the map plane and udpate it """
+        """ Project the semantic image onto the map plane and update it """
 
         points_map = homogenize(np.array(self.anchor_points_2))
         points_local = np.matmul(self.discretize_matrix_inv, points_map)
@@ -515,8 +521,8 @@ class SemanticMapping:
         mask[:, 0:sep] = 0
         idx_mask_3 = np.zeros([map_local.shape[0], map_local.shape[1], 3])
 
-        for i in range(len(self.catogories)):
-            idx = image_on_map[:, :, 0] == self.catogories[i]
+        for i in range(len(self.categories)):
+            idx = image_on_map[:, :, 0] == self.categories[i]
             idx_mask = np.logical_and(idx, mask)
             map_local[idx_mask, i] += 1
             # idx_mask_3[idx_mask] = self.catogories_color[i]
