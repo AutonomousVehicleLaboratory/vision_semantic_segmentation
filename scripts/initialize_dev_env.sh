@@ -53,5 +53,6 @@ catkin_make
 sudo apt install gnome-terminal -y
 
 # Install python package
+cd ~/codebase/ros_workspace/src
 pip install numpy --upgrade --user
 pip install -r vision_semantic_segmentation/requirements.txt --user

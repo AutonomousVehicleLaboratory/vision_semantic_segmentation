@@ -55,7 +55,7 @@ class ConfusionMatrix:
     def _normalize_to_probability(self, mtx):
         """ Normalizes the confusion matrix to probability """
 
-        # Need to change the np.sum(mtx, axis=1) shape to (4, 1) otherwise the division is wrong.
+        # Need to change the np.sum(mtx, axis=1) shape to (-1, 1) otherwise the division is wrong.
         return mtx / np.sum(mtx, axis=1)[:, np.newaxis]
 
 
@@ -66,7 +66,8 @@ if __name__ == '__main__':
     print(cfn_mtx)
     print(len(cfn_mtx))
 
-    indices = [1, 3, 5, 6]
+    # indices = [1, 3, 5, 6]
+    indices = [2, 1, 8, 10, 3]
     sub_mtx = cfn_mtx.get_submatrix(indices, True)
     # for i in range(len(indices)):
     #     assert sub_mtx[i, 0] == cfn_mtx[indices[i], indices[0]]
