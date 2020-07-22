@@ -24,7 +24,8 @@ def color_map_local(map_local, catogories, catogories_color):
     """ color the map by which label has max number of points """
     colored_map = np.zeros((map_local.shape[0], map_local.shape[1], 3)).astype(np.uint8)
     
-    np.save('/home/henry/Pictures/map_local.npy', map_local)
+    # save the map for tunning rendering parameter
+    # np.save('/home/henry/Pictures/map_local.npy', map_local)
 
     map_sum = np.sum(map_local, axis=2) # get all zero mask
     map_argmax = np.argmax(map_local, axis=2)
@@ -125,28 +126,31 @@ def test_filter():
 
 
 def test_separate_map():
-    map_local = np.load('/home/henry/Pictures/map_local.npy')[550:-200, 150:450]
+    map_local = np.load('/home/henry/Pictures/map_local.npy').transpose(1,0,2)[200:400, 100:-600]
     from matplotlib import pyplot as plt
     # visualization
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(nrows=2, ncols=2)
     fig.canvas.manager.full_screen_toggle()
 
     
-    im1 = ax1.imshow(map_local[:,:,3])
+    im1 = ax1.imshow(map_local[:,:,2])
     fig.colorbar(im1, ax=ax1)
-    ax1.set_title('vegetation layer')
+    ax1.set_title('lane layer')
 
-    im2 = ax2.imshow((map_local[:,:,3] > 5).astype(np.uint8))
+    im2 = ax2.imshow((map_local[:,:,2] > 0).astype(np.uint8))
     fig.colorbar(im2, ax=ax2)
     ax2.set_title('larger than 5')
 
-    im3 = ax3.imshow((map_local[:,:,3] > 10).astype(np.uint8))
+    im3 = ax3.imshow((map_local[:,:,2] > 2).astype(np.uint8))
     fig.colorbar(im3, ax=ax3)
     ax3.set_title('larger than 10')
 
-    im4 = ax4.imshow((map_local[:,:,3] > 20).astype(np.uint8))
+    im4 = ax4.imshow((map_local[:,:,2] > 5).astype(np.uint8))
     fig.colorbar(im4, ax=ax4)
     ax4.set_title('larger than 20')
+
+    plt.figure()
+    plt.imshow((map_local[:,:,2] > 0).astype(np.uint8))
 
     plt.tight_layout(pad=0, w_pad=0, h_pad=0)
     plt.show()
@@ -218,22 +222,34 @@ def apply_filter(src):
     kernel_size = 3
     kernel = np.ones((kernel_size, kernel_size), dtype=np.float32)
     kernel /= (kernel_size * kernel_size)
+
+    # ratio = 1/4.0
+    # kernel = (1-ratio) / 8.0 * np.ones((kernel_size, kernel_size), dtype=np.float32)
+    # kernel[int(kernel_size/2),int(kernel_size/2)] = ratio
     
     dst = cv2.filter2D(src, ddepth, kernel)
     
     return dst
 
+def fill_edge(color_map):
+    color_map[[0,-1],:,:] = 250
+    color_map[:, [0,-1],:] = 250
+    color_map[0:5,0:5] = 254
+    return color_map
+
+
 def exec_render_portion():
     import cv2
     priority = [3,4,0,2,1]
-    map_local = np.load('/home/henry/Pictures/map_local_0721.npy')
+    map_local = np.load('/home/henry/Pictures/map_local_0722_horizon_20.npy')
 
     map_local = apply_filter(map_local)
     
-    color_map = color_map_portion(map_local, priority, label_colors, portion = [0.1, 0.1, 0.5, 0.1, 0.05])
+    color_map = color_map_portion(map_local, priority, label_colors, portion = [0.1, 0.1, 0.5, 0.20, 0.05])
 
     # color_map = fill_black(color_map)
 
+    # color_map = fill_edge(color_map)
     cv2.imwrite('/home/henry/Pictures/global_map_new.png', color_map)
 
 # main
