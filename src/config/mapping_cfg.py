@@ -18,7 +18,11 @@ def get_cfg_defaults():
 # --------------------------------------------------------------------------- #
 # General Configuration
 # --------------------------------------------------------------------------- #
-_C.OUTPUT_DIR = ""
+# We will create a sub-folder with this name in the output directory
+_C.TASK_NAME = "vanilla_confusion_matrix"
+
+# '@' here means the root directory of the project
+_C.OUTPUT_DIR = "@/outputs"
 
 # The resolution of the occupancy grid in meters
 _C.RESOLUTION = 0.1

@@ -6,6 +6,7 @@ Date:February 24, 2020
 
 """
 import cv2
+import errno
 import numpy as np
 import os
 import os.path as osp
@@ -26,7 +27,7 @@ from src.camera import camera_setup_1, camera_setup_6
 from src.config.mapping_cfg import get_cfg_defaults
 from src.data.confusion_matrix import ConfusionMatrix
 from src.homography import generate_homography
-from src.rendering import color_map_local
+from src.rendering import render_bev_map
 from src.utils import homogenize, dehomogenize, get_rotation_from_angle_2d
 from src.utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
 
@@ -66,7 +67,16 @@ class SemanticMapping:
         self.tf_ros = TransformerROS()
         self.bridge = CvBridge()
 
-        self.output_dir = cfg.OUTPUT_DIR
+        # Set up the output directory
+        output_dir = cfg.OUTPUT_DIR  # type:str
+        if '@' in output_dir:
+            # Replace @ with the project root directory
+            output_dir = output_dir.replace('@', osp.join(osp.dirname(__file__), "../"))
+            # Create a sub-folder in the output directory with the name of cfg.TASK_NAME
+            output_dir = osp.join(output_dir, cfg.TASK_NAME)
+            output_dir = osp.abspath(output_dir)
+
+        self.output_dir = output_dir
         self.depth_method = cfg.DEPTH_METHOD
 
         self.pose = None
@@ -107,7 +117,7 @@ class SemanticMapping:
         # directory.
         # 3. Set the load_path to the path of the cfn_mtx.npy
         confusion_matrix = ConfusionMatrix(load_path=cfg.CONFUSION_MTX.LOAD_PATH)
-        self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True)
+        self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
 
     def preprocessing(self):
         """ Setup constant matrices """
@@ -256,7 +266,6 @@ class SemanticMapping:
         self.mapping(image_in, self.pose, camera_calibration)
 
         rospy.logdebug("Finished Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
-        # rospy.signal_shutdown('Done with the mapping')
 
     def mapping(self, semantic_image, pose, camera_calibration):
         """
@@ -270,8 +279,7 @@ class SemanticMapping:
         """
         # Initialize the map
         if self.map is None:
-            num_class = len(self.label_names)
-            self.map = np.ones((self.map_height, self.map_width, self.map_depth)) / num_class
+            self.map = np.zeros((self.map_height, self.map_width, self.map_depth))
             transform_matrix, trans, rot, euler = get_transformation(
                 frame_from='/base_link', frame_to='/global_map',
                 time_from=self.pose_time, time_to=rospy.Time(0),
@@ -291,10 +299,16 @@ class SemanticMapping:
             self.map = self.update_map_planar(self.map, semantic_image, camera_calibration)
 
         if self.save_map_to_file:
-            color_map = color_map_local(self.map, self.label_names, self.label_colors)
+            color_map = render_bev_map(self.map, self.label_names, self.label_colors)
 
             output_dir = osp.join(self.output_dir, "picture")
-            os.makedirs(output_dir, exist_ok=True)
+
+            # In Python 2.7 there is no exist_ok, so we have to do it manually
+            try:
+                os.makedirs(output_dir)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise
 
             output_file = osp.join(output_dir, "global_map.png")
             print("Saving image to", output_file)
@@ -306,6 +320,9 @@ class SemanticMapping:
                 self.pub_semantic_local_map.publish(image_pub)
             except CvBridgeError as e:
                 print(e)
+
+            # TODO: This line of code is just for debugging purpose
+            rospy.signal_shutdown('Done with the mapping')
 
     def project_pcd(self, pcd, pcd_frame_id, image, pose, camera_calibration):
         """
@@ -345,8 +362,6 @@ class SemanticMapping:
         """
         Project the semantic point cloud on the BEV map
 
-        TODO: This is the key part of our algorithm. Think about how to improve this.
-
         Args:
             map: np.ndarray with shape (H, W, C). H is the height, W is the width, and C is the semantic class.
             pcd: np.ndarray with shape (4, N). N is the number of points. The point cloud
@@ -384,7 +399,8 @@ class SemanticMapping:
 
             # Update the local map with Bayes update rule
             # y = pcd_pixel[1, idx_mask], x = pcd_pixel[0, idx_mask]
-            map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] *= self.confusion_matrix[i, :].reshape(1, -1)
+            # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] has shape (n, num_classes)
+            map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
 
             # # Intensity-aware
             # if self.use_pcd_intensity and label_name in ["crosswalk", "land"]:
