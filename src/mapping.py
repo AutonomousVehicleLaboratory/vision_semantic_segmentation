@@ -6,7 +6,6 @@ Date:February 24, 2020
 
 """
 import cv2
-import errno
 import numpy as np
 import os
 import os.path as osp
@@ -17,19 +16,21 @@ import sys
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "../")))
 
 from cv_bridge import CvBridge, CvBridgeError
-from geometry_msgs.msg import PoseStamped, Transform, Pose, Quaternion
+from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import Image, PointCloud2
 from sensor_msgs import point_cloud2 as pc2
-from tf import Transformer, TransformListener, TransformerROS
-from tf.transformations import quaternion_matrix, euler_from_quaternion, euler_matrix
+from tf import TransformListener, TransformerROS
+from tf.transformations import euler_matrix
 
 from src.camera import camera_setup_1, camera_setup_6
-from src.config.mapping_cfg import get_cfg_defaults
+from src.config.base_cfg import get_cfg_defaults
 from src.data.confusion_matrix import ConfusionMatrix
 from src.homography import generate_homography
 from src.rendering import render_bev_map
-from src.utils import homogenize, dehomogenize, get_rotation_from_angle_2d
-from src.utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
+from src.utils.utils import homogenize, dehomogenize, get_rotation_from_angle_2d
+from src.utils.utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
+from src.utils.logger import MyLogger
+from src.utils.file_io import makedirs
 
 
 class SemanticMapping:
@@ -76,6 +77,11 @@ class SemanticMapping:
             output_dir = osp.join(output_dir, cfg.TASK_NAME)
             output_dir = osp.abspath(output_dir)
 
+        # Set up the logger
+        self.logger = MyLogger("mapping", save_dir=output_dir, use_timestamp=False)
+        # Because logger will create create a sub folder "version_xxx", we need to update the output_dir
+        output_dir = self.logger.save_dir
+
         self.output_dir = output_dir
         self.depth_method = cfg.DEPTH_METHOD
 
@@ -118,6 +124,9 @@ class SemanticMapping:
         # 3. Set the load_path to the path of the cfn_mtx.npy
         confusion_matrix = ConfusionMatrix(load_path=cfg.CONFUSION_MTX.LOAD_PATH)
         self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
+
+        # Print the configuration to user
+        self.logger.log("Running with configuration:\n" + str(cfg))
 
     def preprocessing(self):
         """ Setup constant matrices """
@@ -301,14 +310,8 @@ class SemanticMapping:
         if self.save_map_to_file:
             color_map = render_bev_map(self.map, self.label_names, self.label_colors)
 
-            output_dir = osp.join(self.output_dir, "picture")
-
-            # In Python 2.7 there is no exist_ok, so we have to do it manually
-            try:
-                os.makedirs(output_dir)
-            except OSError as e:
-                if e.errno != errno.EEXIST:
-                    raise
+            output_dir = self.output_dir
+            makedirs(output_dir, exist_ok=True)
 
             output_file = osp.join(output_dir, "global_map.png")
             print("Saving image to", output_file)
@@ -396,6 +399,19 @@ class SemanticMapping:
             # Then we do a logical AND among the rows of a, represented by *a.
             idx = np.logical_and(*(label == self.label_colors[i].reshape(3, 1)))
             idx_mask = np.logical_and(idx, on_grid_mask)
+
+            # For all the points that have been classified as land, we augment its count by looking at its intensity
+            # print(label_name)
+            # if label_name == "lane":
+            #
+            #     intensity_mask = np.logical_and(pcd[3] < 2, idx_mask)
+            #
+            #     # pcd_intensity = pcd_pixel[3, idx_mask]
+            #     # intensity_mask = pcd_intensity < 2
+            #     map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], i] += 100
+            #
+            #
+            #     print("intensity_mask", intensity_mask.shape, np.count_nonzero(intensity_mask))
 
             # Update the local map with Bayes update rule
             # y = pcd_pixel[1, idx_mask], x = pcd_pixel[0, idx_mask]

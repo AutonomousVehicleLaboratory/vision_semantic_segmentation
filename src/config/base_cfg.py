@@ -1,5 +1,4 @@
-# The configuration system for mapping
-import numpy as np
+# The basic configuration system
 from yacs.config import CfgNode as CN
 
 _C = CN()
@@ -19,7 +18,8 @@ def get_cfg_defaults():
 # General Configuration
 # --------------------------------------------------------------------------- #
 # We will create a sub-folder with this name in the output directory
-_C.TASK_NAME = "vanilla_confusion_matrix"
+# _C.TASK_NAME = "vanilla_confusion_matrix"
+_C.TASK_NAME = "cfn_mtx_no_intensity"
 
 # '@' here means the root directory of the project
 _C.OUTPUT_DIR = "@/outputs"

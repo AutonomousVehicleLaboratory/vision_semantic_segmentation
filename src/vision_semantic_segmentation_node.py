@@ -14,22 +14,24 @@ import rospy
 import numpy as np
 import sys
 
+# Add src directory into the path
+sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "../")))
 # Add network directory into the path
 sys.path.insert(0, osp.join(osp.dirname(__file__), "network"))
 
-import network.deeplab_v3_plus.data.utils.mapillary_visualization as mapillary_visl
+import src.network.deeplab_v3_plus.data.utils.mapillary_visualization as mapillary_visl
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from shape_msgs.msg import Plane
 from visualization_msgs.msg import Marker, MarkerArray
 
-from camera import camera_setup_6, camera_setup_1
-from network.deeplab_v3_plus.config.demo import cfg
-from plane_3d import Plane3D
-from semantic_convex_hull import generate_convex_hull
-from semantic_segmentation import SemanticSegmentation  # source code
-from vis import visualize_marker
+from src.camera import camera_setup_6, camera_setup_1
+from src.network.deeplab_v3_plus.config.demo import cfg
+from src.plane_3d import Plane3D
+from src.semantic_convex_hull import generate_convex_hull
+from src.semantic_segmentation import SemanticSegmentation  # source code
+from src.vis import visualize_marker
 
 
 # classes
@@ -62,6 +64,7 @@ class VisionSemanticSegmentationNode:
         self.cam1 = camera_setup_1()
 
         self.hull_id = 0
+        self.image_scale = 100 / 100  # Resize the image to reduce the memory overhead, in percentage.
         self.bridge = CvBridge()
 
     def image_callback(self, msg):
@@ -83,12 +86,13 @@ class VisionSemanticSegmentationNode:
             rospy.logwarn("unseen camera frame id %s, no undistortion performed.", msg.header.frame_id)
 
         # Resize the image to reduce the memory overhead
-        scale_percent = 50 / 100
-        width = int(image_in.shape[1] * scale_percent)
-        height = int(image_in.shape[0] * scale_percent)
-        dim = (width, height)
-
-        image_in_resized = cv2.resize(image_in, dim, interpolation=cv2.INTER_AREA)
+        if self.image_scale < 1:
+            width = int(image_in.shape[1] * self.image_scale)
+            height = int(image_in.shape[0] * self.image_scale)
+            dim = (width, height)
+            image_in_resized = cv2.resize(image_in, dim, interpolation=cv2.INTER_AREA)
+        else:
+            image_in_resized = image_in
 
         ## ========== semantic segmentation
         image_out_resized = self.seg.segmentation(image_in_resized)

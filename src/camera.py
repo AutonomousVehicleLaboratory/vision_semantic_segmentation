@@ -10,7 +10,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import pyplot as plt
 from plane_3d import Plane3D
 from bounding_box import BoundingBox
-from utils import homogenize, dehomogenize, parameterize_rotation
+
+from src.utils.utils import homogenize, dehomogenize, parameterize_rotation
 
 
 # parameters
@@ -29,7 +30,7 @@ class Camera:
         self.T[-1, -1] = 1
         self.K_inv = np.linalg.inv(self.K)  # inverse of intrinsic for convenience
         # camera center in the world coordinate using inhomogeneous representation
-        self.C_world_inhomo = np.matmul(-R.T,t)
+        self.C_world_inhomo = np.matmul(-R.T, t)
         self.imSize = imSize  # image size
         self.dist = dist
 
