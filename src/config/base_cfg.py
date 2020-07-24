@@ -19,7 +19,7 @@ def get_cfg_defaults():
 # --------------------------------------------------------------------------- #
 # We will create a sub-folder with this name in the output directory
 # _C.TASK_NAME = "vanilla_confusion_matrix"
-_C.TASK_NAME = "cfn_mtx_no_intensity"
+_C.TASK_NAME = "cfn_mtx_with_intensity"
 
 # '@' here means the root directory of the project
 _C.OUTPUT_DIR = "@/outputs"
@@ -50,7 +50,7 @@ _C.LABEL_COLORS = [
 _C.PCD = CN()
 # The point cloud intensity threshold. We use this to identify the high intensity area in the point cloud map.
 _C.PCD.INTENSITY_THLD = 15
-_C.PCD.USE_INTENSITY = True  # Use intensity if True
+_C.PCD.USE_INTENSITY = True  # Use intensity to augment the data if True
 
 _C.CONFUSION_MTX = CN()
 # The load path of the confusion matrix

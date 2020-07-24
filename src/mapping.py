@@ -384,7 +384,7 @@ class SemanticMapping:
         pcd_local = np.matmul(T_pcd_to_local, homogenize(pcd[0:3]))[0:3, :]
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
 
-        # Discretize point cloud into grid
+        # Discretize point cloud into grid, Note that here we are basically doing the nearest neighbor search
         pcd_pixel = np.matmul(self.discretize_matrix, homogenize(pcd_on_map[0:2, :])).astype(np.int32)
         print("pcd_pixel limits", np.min(pcd_pixel[0]), np.max(pcd_pixel[0]),
               np.min(pcd_pixel[1]), np.max(pcd_pixel[1]))
@@ -402,34 +402,17 @@ class SemanticMapping:
 
             # For all the points that have been classified as land, we augment its count by looking at its intensity
             # print(label_name)
-            # if label_name == "lane":
-            #
-            #     intensity_mask = np.logical_and(pcd[3] < 2, idx_mask)
-            #
-            #     # pcd_intensity = pcd_pixel[3, idx_mask]
-            #     # intensity_mask = pcd_intensity < 2
-            #     map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], i] += 100
-            #
-            #
-            #     print("intensity_mask", intensity_mask.shape, np.count_nonzero(intensity_mask))
+            if label_name == "lane":
+                intensity_mask = np.logical_or(pcd[3] < 2, pcd[3] > 14)
+                intensity_mask = np.logical_and(intensity_mask, idx_mask)
+                map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], 2] += 1e8
+
+                print("intensity_mask", intensity_mask.shape, np.count_nonzero(intensity_mask))
 
             # Update the local map with Bayes update rule
             # y = pcd_pixel[1, idx_mask], x = pcd_pixel[0, idx_mask]
             # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] has shape (n, num_classes)
             map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
-
-            # # Intensity-aware
-            # if self.use_pcd_intensity and label_name in ["crosswalk", "land"]:
-            #     mask_intensity = pcd[3, :] > self.pcd_intensity_threshold  # mask of high intensity
-            #     # map_local[pcd_pixel[1, mask_intensity], pcd_pixel[0, mask_intensity], i] += 1000 # only intensity
-            #     mask_intensity_idx = np.logical_and(mask_intensity,
-            #                                         idx_mask)  # mask of current label with high intensity
-            #
-            #     # TODO: tune this formula for extra odds
-            #     # extra_odds added = (i-thred)
-            #     extra_odds = pcd[3, mask_intensity_idx] - self.pcd_intensity_threshold
-            #     # assign to current channel
-            #     map[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], i] += 10
 
         return map
 
