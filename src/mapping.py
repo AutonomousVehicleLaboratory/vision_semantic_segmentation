@@ -5,6 +5,7 @@ Author: Henry Zhang
 Date:February 24, 2020
 
 """
+import argparse
 import cv2
 import numpy as np
 import os
@@ -26,7 +27,7 @@ from src.camera import camera_setup_1, camera_setup_6
 from src.config.base_cfg import get_cfg_defaults
 from src.data.confusion_matrix import ConfusionMatrix
 from src.homography import generate_homography
-from src.rendering import render_bev_map
+from src.renderer import render_bev_map
 from src.utils.utils import homogenize, dehomogenize, get_rotation_from_angle_2d
 from src.utils.utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
 from src.utils.logger import MyLogger
@@ -44,7 +45,7 @@ class SemanticMapping:
         """
 
         Args:
-            cfg: Configuration file - Please read config/mapping_cfg
+            cfg: Configuration file
         """
         # Sanity check
         assert len(cfg.LABELS) == len(cfg.LABELS_NAMES) == len(cfg.LABEL_COLORS)
@@ -117,7 +118,8 @@ class SemanticMapping:
 
         self.preprocessing()
 
-        self.test_cut_time = 1581541290  # 1581541437
+        # This is a testing parameter, when the time stamp reach this number, the entire node will terminate.
+        self.test_cut_time = 1581541290
 
         # Instruction
         # 1. Please download the confusion matrix from the Google Drive
@@ -387,7 +389,8 @@ class SemanticMapping:
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
 
         # Discretize point cloud into grid, Note that here we are basically doing the nearest neighbor search
-        pcd_pixel = ((pcd_on_map[0:2,:] - np.array([[self.map_boundary[0][0]],[self.map_boundary[1][0]]])) / self.d).astype(np.int32)
+        pcd_pixel = ((pcd_on_map[0:2, :] - np.array([[self.map_boundary[0][0]], [self.map_boundary[1][0]]]))
+                     / self.resolution).astype(np.int32)
         print("pcd_pixel limits", np.min(pcd_pixel[0]), np.max(pcd_pixel[0]),
               np.min(pcd_pixel[1]), np.max(pcd_pixel[1]))
         on_grid_mask = np.logical_and(np.logical_and(0 <= pcd_pixel[0, :], pcd_pixel[0, :] < self.map_width),
@@ -481,7 +484,7 @@ class SemanticMapping:
         car_center = np.array([[length / 4, width / 2]]).T / self.resolution
         discretize_matrix_inv = np.array([
             [self.resolution, 0, -length / 4],
-            [0, -self.resolution, width / 2],   # Warning: double check the sign of -self.resolution
+            [0, -self.resolution, width / 2],  # Warning: double check the sign of -self.resolution
             [0, 0, 1]
         ])
 
@@ -515,11 +518,32 @@ class SemanticMapping:
         return extrinsics
 
 
-# main
+def parse_args():
+    """ Parse the command line arguments """
+    parser = argparse.ArgumentParser(description='PycOccNet Training')
+    parser.add_argument(
+        '--cfg',
+        dest='config_file',
+        default='',
+        metavar='FILE',
+        help='path to config file',
+        type=str,
+    )
+
+    # Code inspired from https://discourse.ros.org/t/getting-python-argparse-to-work-with-a-launch-file-or-python-node/10606
+    # Note that here we use sys.argv[1:-2] as the last two parameters relate to roslaunch
+    args = parser.parse_args(sys.argv[1:-2])
+    return args
+
+
 def main():
     rospy.init_node('semantic_mapping')
 
     cfg = get_cfg_defaults()
+    args = parse_args()
+    if args.config_file:
+        cfg.merge_from_file(args.config_file)
+
     sm = SemanticMapping(cfg)
     rospy.spin()
 
