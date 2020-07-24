@@ -117,6 +117,8 @@ class SemanticMapping:
 
         self.preprocessing()
 
+        self.test_cut_time = 1581541290  # 1581541437
+
         # Instruction
         # 1. Please download the confusion matrix from the Google Drive
         # 2. Then create a directory called "external_data/confusion_matrix" and save the download folder into the
@@ -136,7 +138,7 @@ class SemanticMapping:
 
         self.discretize_matrix_inv = np.array([
             [self.resolution, 0, self.map_boundary[0][0]],
-            [0, -self.resolution, self.map_boundary[1][1]],
+            [0, self.resolution, self.map_boundary[1][1]],
             [0, 0, 1],
         ]).astype(np.float)
         self.discretize_matrix = np.linalg.inv(self.discretize_matrix_inv)
@@ -210,7 +212,7 @@ class SemanticMapping:
     def pose_callback(self, msg):
         rospy.logdebug("Getting pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         self.pose_queue.append(msg)
-        if msg.header.stamp.secs == 1581541270:  # 1581541437: TODO: explain the magic number here
+        if msg.header.stamp.secs == self.test_cut_time:
             self.save_map_to_file = True
         rospy.logdebug("Pose queue length: %d", len(self.pose_queue))
 
@@ -385,7 +387,7 @@ class SemanticMapping:
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
 
         # Discretize point cloud into grid, Note that here we are basically doing the nearest neighbor search
-        pcd_pixel = np.matmul(self.discretize_matrix, homogenize(pcd_on_map[0:2, :])).astype(np.int32)
+        pcd_pixel = ((pcd_on_map[0:2,:] - np.array([[self.map_boundary[0][0]],[self.map_boundary[1][0]]])) / self.d).astype(np.int32)
         print("pcd_pixel limits", np.min(pcd_pixel[0]), np.max(pcd_pixel[0]),
               np.min(pcd_pixel[1]), np.max(pcd_pixel[1]))
         on_grid_mask = np.logical_and(np.logical_and(0 <= pcd_pixel[0, :], pcd_pixel[0, :] < self.map_width),
@@ -395,7 +397,7 @@ class SemanticMapping:
         for i, label_name in enumerate(self.label_names):
             # Code explanation:
             # We first do an elementwise comparison
-            # a = label == self.label_colors[i].reshape(3, 1)
+            # a = (label == self.label_colors[i].reshape(3, 1))
             # Then we do a logical AND among the rows of a, represented by *a.
             idx = np.logical_and(*(label == self.label_colors[i].reshape(3, 1)))
             idx_mask = np.logical_and(idx, on_grid_mask)
@@ -461,6 +463,15 @@ class SemanticMapping:
         return map_local
 
     def add_car_to_map(self, color_map):
+        """
+        Warning: This function is not tested, may have bug!
+        Args:
+            color_map:
+
+        Returns:
+
+        """
+
         """ visualize ego car on the color map """
         # setting parameters
         length = 4.0
@@ -470,7 +481,7 @@ class SemanticMapping:
         car_center = np.array([[length / 4, width / 2]]).T / self.resolution
         discretize_matrix_inv = np.array([
             [self.resolution, 0, -length / 4],
-            [0, -self.resolution, width / 2],
+            [0, -self.resolution, width / 2],   # Warning: double check the sign of -self.resolution
             [0, 0, 1]
         ])
 
