@@ -50,8 +50,8 @@ def profile(fnc):
 
 # classes
 class SemanticMapping:
-    def __init__(self, discretization = 0.1, boundary = [[100, 300], [800, 1000]], depth_method='points_map'):
-        """[[100, 1000], [500, 1400]]"""
+    def __init__(self, discretization = 0.2, boundary = [[155, 175],[845, 1000]], depth_method='points_map'):
+        """[[100, 300], [800, 1000]], [[0, 1000], [0, 1400]], [[100, 1000], [500, 1400]]"""
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
         self.image_sub_cam1 = rospy.Subscriber("/camera1/semantic", Image, self.image_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
@@ -101,8 +101,8 @@ class SemanticMapping:
             [107, 142, 35], # vegetation
             [244, 35, 232] # sidewalk
         ])
-        self.map_width = int((boundary[0][1] - boundary[0][0]) / self.d)
-        self.map_height = int((boundary[1][1] - boundary[1][0]) / self.d)
+        self.map_height = int((boundary[0][1] - boundary[0][0]) / self.d)
+        self.map_width = int((boundary[1][1] - boundary[1][0]) / self.d)
         self.map_depth = len(self.catogories)
 
         self.position_rel = np.array([[0,0,0]]).T
@@ -115,6 +115,9 @@ class SemanticMapping:
         self.colored_map = None
         self.record_max_length = 100
         self.record_filename = "/home/henry/log_odds_2.pickle"
+        self.test_cut_time = 1581541290 # 1581541437 
+        self.skip = 1 # 1 for do not skip
+        self.skip_counter = 0
 
 
     def preprocessing(self):
@@ -125,7 +128,7 @@ class SemanticMapping:
         
         self.discretize_matrix_inv = np.array([
             [self.d, 0, self.map_boundary[0][0]],
-            [0, -self.d, self.map_boundary[1][1]],
+            [0, self.d, self.map_boundary[1][1]],
             [0, 0, 1]
         ]).astype(np.float)
         self.discretize_matrix = np.linalg.inv(self.discretize_matrix_inv)
@@ -201,7 +204,7 @@ class SemanticMapping:
     def pose_callback(self, msg):
         rospy.logdebug("Getting pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         self.pose_queue.append(msg)
-        if msg.header.stamp.secs == 1581541270: # 1581541437:
+        if msg.header.stamp.secs == self.test_cut_time:
             self.b_render_map = True
         rospy.logdebug("Pose queue length: %d", len(self.pose_queue))
         # T, trans, rot, euler = get_transformation(frame_from='/velodyne', frame_to='/base_link')
@@ -235,7 +238,7 @@ class SemanticMapping:
                     else:
                         msg = self.pose_queue[i]
                     self.pose_queue = self.pose_queue[i::]
-                    rospy.logdebug("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+                    rospy.logdebug("Setting curren[:, ::450]t pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
                     return msg.pose, msg.header.stamp
         msg = self.pose_queue[-1]
         self.pose_queue = self.pose_queue[-1::]
@@ -293,7 +296,11 @@ class SemanticMapping:
         
         if self.depth_method == 'points_map' or self.depth_method == 'points_raw':
             pcd_in_range, pcd_label = self.project_pcd(self.pcd, self.pcd_frame_id, im_src, pose, cam)
-            updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
+            if self.skip_counter % self.skip == 0:
+                updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
+            else:
+                updated_map = self.map
+            self.skip_counter += 1
             pcd_pub = create_point_cloud(pcd_in_range[0:3].T, pcd_label.T, frame_id=self.pcd_frame_id)
             self.pub_pcd.publish(pcd_pub)
         else:
@@ -304,7 +311,7 @@ class SemanticMapping:
         # import random
         if self.b_render_map: #random.randint(0, 50) == 10:
             color_map = color_map_local(updated_map, self.catogories, self.catogories_color)
-            color_map_with_car = self.add_car_to_map(np.array(color_map))
+            # color_map_with_car = self.add_car_to_map(np.array(color_map))
             self.colored_map = color_map
             print("writing image here")
             cv2.imwrite('/home/henry/Pictures/global_map.png', color_map)
@@ -354,73 +361,6 @@ class SemanticMapping:
         return masked_pcd, label
 
 
-    # def require_new_map(self, pose):
-    #     transform_matrix, trans, rot, euler = get_transformation( frame_from='/base_link', frame_to='/global_map',
-    #                                                               time_from= self.pose_time, time_to=rospy.Time(0), static_frame='/world',
-    #                                                               tf_listener=self.tf_listener, tf_ros=self.tf_ros)
-    #     self.position_rel = np.array([[trans[0], trans[1], trans[2]]]).T
-    #     self.yaw_rel = euler[2]
-    #     if trans is None or self.map is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2 or np.linalg.norm(euler) > 0.1:
-    #         flag = True
-    #     else:
-    #         flag = False
-    #     rospy.logdebug("%s", "True" if flag else "False")
-    #     return flag
-
-
-    # def create_new_local_map(self, pose):
-    #     map_new = np.zeros((self.map_height , self.map_width, self.map_depth))
-    #     self.position_rel = np.array([[0, 0, 0]]).T
-    #     self.yaw_rel = 0
-    #     return map_new
-
-
-    # def transform_old_map(self, map_new, map_old, pose_old, pose_new):
-    #     if map_old is None:
-    #         return map_new
-    #     else:
-    #         points_old_map = homogenize(np.array(self.anchor_points))
-    #         points_old_local = np.matmul(self.discretize_matrix_inv, points_old_map)
-    #         points_old_local[2,:] = 0
-    #         points_old_local = homogenize(points_old_local)
-
-    #         # compute transformation (deprecated method, use tf istead for accuracy)
-    #         T_old_map_to_world = get_transform_from_pose(pose_old)
-    #         T_new_map_to_world = get_transform_from_pose(pose_new)
-    #         T_old_map_to_new_map = np.matmul(T_old_map_to_world, np.linalg.inv(T_new_map_to_world))
-
-    #         mat, _, _, _ = get_transformation( frame_from='/local_map', frame_to='/base_link',
-    #                                            time_from=rospy.Time(0), time_to=self.pose_time, static_frame='/world',
-    #                                            tf_listener=self.tf_listener, tf_ros=self.tf_ros )
-
-    #         if mat is not None:
-    #             T_old_map_to_new_map = mat
-
-    #         # compute new points
-    #         points_new_local = np.matmul(T_old_map_to_new_map, points_old_local)
-    #         points_new_local = points_new_local[0:2]
-    #         points_new_local = homogenize(points_new_local)
-    #         points_new_map = np.matmul(self.discretize_matrix, points_new_local)[0:2]
-
-    #         # generate homography
-    #         map_old_transformed, h = generate_homography(map_old, points_old_map[0:2].T, points_new_map.T, vis=False, return_h=True)
-            
-    #         if self.is_recording:
-    #             self.recorded_log_odds["log_odds"].append(np.array(map_old))
-    #             self.recorded_log_odds["h"].append(np.array(h))
-    #             self.recorded_log_odds["color_map"].append(self.colored_map)
-    #             length = len(self.recorded_log_odds["log_odds"])
-    #             rospy.logwarn("length of record %d", length)
-    #             if length == self.record_max_length:
-    #                 with open(self.record_filename, 'wb') as filehandler:
-    #                     pickle.dump(self.recorded_log_odds, filehandler)
-    #                 print("recorded file to %s", self.record_filename)
-
-    #         # decay factor, make the map not as over confident
-    #         map_old_transformed = map_old_transformed / self.map_decay
-    #         return map_old_transformed
-
-
     def update_map(self, map_local, pcd, label):
         """ project the pcd on the map """
 
@@ -435,10 +375,11 @@ class SemanticMapping:
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
 
         # discretize
-        pcd_pixel = np.matmul(self.discretize_matrix, homogenize(pcd_on_map[0:2,:])).astype(np.int32)
+        pcd_pixel = ((pcd_on_map[0:2,:] - np.array([[self.map_boundary[0][0]],[self.map_boundary[1][0]]])) / self.d).astype(np.int32)
+        # pcd_pixel = np.matmul(self.discretize_matrix, homogenize(pcd_on_map[0:2,:])).astype(np.int32)
         print("pcd_pixel limits", np.min(pcd_pixel[0]),np.max(pcd_pixel[0]),np.min(pcd_pixel[1]),np.max(pcd_pixel[1]),)
-        mask = np.logical_and( np.logical_and(0 <= pcd_pixel[0,:], pcd_pixel[0,:] < self.map_width ),
-                               np.logical_and(0 <= pcd_pixel[1,:], pcd_pixel[1,:] < self.map_height ))
+        mask = np.logical_and( np.logical_and(0 <= pcd_pixel[0,:], pcd_pixel[0,:] < self.map_height ),
+                               np.logical_and(0 <= pcd_pixel[1,:], pcd_pixel[1,:] < self.map_width ))
         
         # update corresponding labels
 
@@ -447,7 +388,7 @@ class SemanticMapping:
             idx_mask = np.logical_and(idx, mask)
             
             # suppression
-            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2 # if (i == 1 or i == 2) else 2
+            map_local[pcd_pixel[0, idx_mask], pcd_pixel[1, idx_mask], i] += 1 # if (i == 1 or i == 2) else 2
             # map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
             
             # intensity-aware
@@ -460,7 +401,7 @@ class SemanticMapping:
                 # TODO: tune this formula for extra odds
                 # extra_odds added = (i-thred)
                 extra_odds = pcd[3,mask_intensity_idx] - self.pcd_intensity_threshold
-                map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], i] += 10 # assign to current channel            
+                # map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[0, mask_intensity_idx], i] += 10 # assign to current channel            
         
         map_local[map_local < -10] = -10
 
