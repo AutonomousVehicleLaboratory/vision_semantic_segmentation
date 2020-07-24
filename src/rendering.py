@@ -25,7 +25,7 @@ def color_map_local(map_local, catogories, catogories_color):
     colored_map = np.zeros((map_local.shape[0], map_local.shape[1], 3)).astype(np.uint8)
     
     # save the map for tunning rendering parameter
-    # np.save('/home/henry/Pictures/map_local.npy', map_local)
+    np.save('/home/henry/Pictures/map_local.npy', map_local)
 
     map_sum = np.sum(map_local, axis=2) # get all zero mask
     map_argmax = np.argmax(map_local, axis=2)
@@ -125,8 +125,42 @@ def test_filter():
     plt.show()
 
 
+def test_map_layer():
+    map_local = np.load('/home/henry/Pictures/map_local.npy')[:,300:500]
+    from matplotlib import pyplot as plt
+    # visualization
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(nrows=2, ncols=2)
+    fig.canvas.manager.full_screen_toggle()
+
+    binarize = True
+    
+    im1 = ax1.imshow((map_local[:,:,0] > 0).astype(np.uint8) if binarize else map_local[:,:,0])
+    
+    ax1.set_title('road layer')
+
+    im2 = ax2.imshow((map_local[:,:,1] > 0).astype(np.uint8) if binarize else map_local[:,:,1])
+    
+    ax2.set_title('crosswalk layer')
+
+    im3 = ax3.imshow((map_local[:,:,2] > 0).astype(np.uint8) if binarize else map_local[:,:,2])
+    
+    ax3.set_title('lane layer')
+
+    im4 = ax4.imshow((map_local[:,:,4] > 0).astype(np.uint8) if binarize else map_local[:,:,4])
+    
+    ax4.set_title('sidewalk layer')
+    
+    if not binarize:
+        fig.colorbar(im1, ax=ax1)
+        fig.colorbar(im2, ax=ax2)
+        fig.colorbar(im3, ax=ax3)
+        fig.colorbar(im4, ax=ax4)
+    
+    plt.tight_layout(pad=0, w_pad=0, h_pad=0)
+    plt.show()
+
 def test_separate_map():
-    map_local = np.load('/home/henry/Pictures/map_local.npy').transpose(1,0,2)[200:400, 100:-600]
+    map_local = np.load('/home/henry/Pictures/map_local.npy')
     from matplotlib import pyplot as plt
     # visualization
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(nrows=2, ncols=2)
@@ -241,9 +275,9 @@ def fill_edge(color_map):
 def exec_render_portion():
     import cv2
     priority = [3,4,0,2,1]
-    map_local = np.load('/home/henry/Pictures/map_local_0722_horizon_20.npy')
+    map_local = np.load('/home/henry/Pictures/map_local.npy')
 
-    map_local = apply_filter(map_local)
+    # map_local = apply_filter(map_local)
     
     color_map = color_map_portion(map_local, priority, label_colors, portion = [0.1, 0.1, 0.5, 0.20, 0.05])
 
@@ -255,9 +289,10 @@ def exec_render_portion():
 # main
 def main():
     # test_filter()
+    test_map_layer()
     # test_separate_map()
     # test_render_portion()
-    exec_render_portion()
+    # exec_render_portion()
 
 
 if __name__ == "__main__":
