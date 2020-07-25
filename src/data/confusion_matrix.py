@@ -22,13 +22,15 @@ class ConfusionMatrix:
         assert height == width
         self.num_class = height
 
-    def get_submatrix(self, indices, to_probability=False):
+    def get_submatrix(self, indices, to_probability=False, use_log=False):
         """
         Gets the confusion matrix that only considers the sub-indices
 
         Args:
             indices: List[int]
             to_probability: bool = False. If True, the return confusion matrix will be normalized with probability.
+            use_log: bool=False. If True, the return confusion matrix will be in log value. (Only will work if
+                to_probability is True)
         """
         num_indices = len(indices)
         if num_indices == 0: return []
@@ -41,6 +43,8 @@ class ConfusionMatrix:
         sub_mtx = self._cfn_mtx[np.ix_(indices, indices)]
         if to_probability:
             sub_mtx = self._normalize_to_probability(sub_mtx)
+            if use_log:
+                sub_mtx = np.log(sub_mtx)
         return sub_mtx
 
     def __str__(self):

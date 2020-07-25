@@ -13,3 +13,4 @@ config/avl.yaml
 
 # Ignore data
 external_data/
+outputs

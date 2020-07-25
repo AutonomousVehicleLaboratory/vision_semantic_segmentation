@@ -14,22 +14,24 @@ import rospy
 import numpy as np
 import sys
 
+# Add src directory into the path
+sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "../")))
 # Add network directory into the path
 sys.path.insert(0, osp.join(osp.dirname(__file__), "network"))
 
-import network.deeplab_v3_plus.data.utils.mapillary_visualization as mapillary_visl
+import src.network.deeplab_v3_plus.data.utils.mapillary_visualization as mapillary_visl
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from shape_msgs.msg import Plane
 from visualization_msgs.msg import Marker, MarkerArray
 
-from camera import camera_setup_6, camera_setup_1
-from network.deeplab_v3_plus.config.demo import cfg
-from plane_3d import Plane3D
-from semantic_convex_hull import generate_convex_hull
-from semantic_segmentation import SemanticSegmentation  # source code
-from vis import visualize_marker
+from src.camera import camera_setup_6, camera_setup_1
+from src.network.deeplab_v3_plus.config.demo import cfg
+from src.plane_3d import Plane3D
+from src.semantic_convex_hull import generate_convex_hull
+from src.semantic_segmentation import SemanticSegmentation  # source code
+from src.vis import visualize_marker
 
 
 # classes
@@ -37,6 +39,7 @@ class VisionSemanticSegmentationNode:
 
     def __init__(self):
         # Set up ros message subscriber
+        # Note that topics ".../image_raw" are created by the launch file
         self.image_sub_cam1 = rospy.Subscriber("/camera1/image_raw", Image, self.image_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.image_callback)
         self.plane_sub = rospy.Subscriber("/estimated_plane", Plane, self.plane_callback)
@@ -61,6 +64,7 @@ class VisionSemanticSegmentationNode:
         self.cam1 = camera_setup_1()
 
         self.hull_id = 0
+        self.image_scale = 100 / 100  # Resize the image to reduce the memory overhead, in percentage.
         self.bridge = CvBridge()
 
     def image_callback(self, msg):
@@ -69,6 +73,7 @@ class VisionSemanticSegmentationNode:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
             print(e)
+            return
             # TODO: image_in will be undefined if this exception raises.
 
         ## ========== Image preprocessing
@@ -81,12 +86,13 @@ class VisionSemanticSegmentationNode:
             rospy.logwarn("unseen camera frame id %s, no undistortion performed.", msg.header.frame_id)
 
         # Resize the image to reduce the memory overhead
-        scale_percent = 50 / 100
-        width = int(image_in.shape[1] * scale_percent)
-        height = int(image_in.shape[0] * scale_percent)
-        dim = (width, height)
-
-        image_in_resized = cv2.resize(image_in, dim, interpolation=cv2.INTER_AREA)
+        if self.image_scale < 1:
+            width = int(image_in.shape[1] * self.image_scale)
+            height = int(image_in.shape[0] * self.image_scale)
+            dim = (width, height)
+            image_in_resized = cv2.resize(image_in, dim, interpolation=cv2.INTER_AREA)
+        else:
+            image_in_resized = image_in
 
         ## ========== semantic segmentation
         image_out_resized = self.seg.segmentation(image_in_resized)
@@ -102,11 +108,14 @@ class VisionSemanticSegmentationNode:
 
         ## ========== Visualize semantic images
         # Convert network label to color
-        # Note: colored_ouptput is in the RGB format, if you visualize it in the opencv, you should convert it to the
-        # BGR format.
         colored_output = self.seg_color_fn(image_out, self.seg_color_ref)
         colored_output = np.squeeze(colored_output)
         colored_output = colored_output.astype(np.uint8)
+
+        # Note: colored_ouptput is in the RGB format, if you visualize it in the opencv, you should convert it to the
+        # BGR format. This is a mistake made before our publication, and by doing so we need to update all our color
+        # which is a lot of work, so we don't do it.
+        # colored_output = cv2.cvtColor(colored_output, cv2.COLOR_RGB2BGR)
 
         try:
             image_pub = self.bridge.cv2_to_imgmsg(colored_output, encoding="passthrough")
@@ -187,7 +196,6 @@ class VisionSemanticSegmentationNode:
     def plane_callback(self, msg):
         self.plane = Plane3D(msg.coef[0], msg.coef[1], msg.coef[2], msg.coef[3])
         self.plane_last_update_time = rospy.get_rostime()
-        # print("plane received: ", self.plane.param.T)
 
 
 # main

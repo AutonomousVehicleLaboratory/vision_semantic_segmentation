@@ -5,46 +5,33 @@ Author: Henry Zhang
 Date:February 24, 2020
 
 """
-
-# module
-import numpy as np
+import argparse
 import cv2
+import numpy as np
+import os
+import os.path as osp
 import rospy
-import cProfile, pstats, io
+import sys
 
-from tf import Transformer, TransformListener, TransformerROS
-from tf.transformations import quaternion_matrix, euler_from_quaternion, euler_matrix
+# Add src directory into the path
+sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "../")))
 
-from geometry_msgs.msg import PoseStamped, Transform, Pose, Quaternion
 from cv_bridge import CvBridge, CvBridgeError
+from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import Image, PointCloud2
 from sensor_msgs import point_cloud2 as pc2
+from tf import TransformListener, TransformerROS
+from tf.transformations import euler_matrix
 
-from camera import camera_setup_1, camera_setup_6
-from utils import homogenize, dehomogenize, get_rotation_from_angle_2d
-from utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
-from homography import generate_homography
-from rendering import color_map_local
-import time
-import pickle
-
-
-def profile(fnc):
-    """ A decorator that use cProfile to profile a function """
-
-    def inner(*args, **argv):
-        pr = cProfile.Profile()
-        pr.enable()
-        retval = fnc(*args, **argv)
-        pr.disable()
-        s = io.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr).sort_stats(sortby)
-        ps.print_stats(0.1)
-        print(s.getvalue())
-        return retval
-
-    return inner
+from src.camera import camera_setup_1, camera_setup_6
+from src.config.base_cfg import get_cfg_defaults
+from src.data.confusion_matrix import ConfusionMatrix
+from src.homography import generate_homography
+from src.renderer import render_bev_map
+from src.utils.utils import homogenize, dehomogenize, get_rotation_from_angle_2d
+from src.utils.utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
+from src.utils.logger import MyLogger
+from src.utils.file_io import makedirs
 
 
 class SemanticMapping:
@@ -54,24 +41,22 @@ class SemanticMapping:
 
     """
 
-    def __init__(self, resolution=0.1, boundary=[[100, 300], [800, 1000]], depth_method='points_map'):
+    def __init__(self, cfg):
         """
 
         Args:
-            resolution: The resolution of the occupancy grid, in meter.
-            boundary: The boundary of the occupancy grid, in meters. The format of the boundary is
-                [[xmin, xmax], [ymin, ymax]]
-            depth_method: This variable defines the way how we estimate the depth from the image. If use
-                "points_map", then we are using the offline point cloud map. If use the points_raw", then we are
-                using the the online point cloud map, i.e. the output from the LiDAR per frame.
+            cfg: Configuration file
         """
+        # Sanity check
+        assert len(cfg.LABELS) == len(cfg.LABELS_NAMES) == len(cfg.LABEL_COLORS)
+
         # Set up ros subscribers
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
         self.image_sub_cam1 = rospy.Subscriber("/camera1/semantic", Image, self.image_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
-        if depth_method == 'points_map':
+        if cfg.DEPTH_METHOD == 'points_map':
             self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
-        elif depth_method == 'points_raw':
+        elif cfg.DEPTH_METHOD == 'points_raw':
             self.sub_pcd = rospy.Subscriber("/points_raw", PointCloud2, self.pcd_callback)
         else:
             rospy.logwarn("Depth estimation method set to others, use planar assumption!")
@@ -80,12 +65,26 @@ class SemanticMapping:
         self.pub_semantic_local_map = rospy.Publisher("/semantic_local_map", Image, queue_size=5)
         self.pub_pcd = rospy.Publisher("/semantic_point_cloud", PointCloud2, queue_size=5)
 
-        self.depth_method = depth_method
-
         self.tf_listener = TransformListener()
-        self.tfmr = Transformer()
         self.tf_ros = TransformerROS()
         self.bridge = CvBridge()
+
+        # Set up the output directory
+        output_dir = cfg.OUTPUT_DIR  # type:str
+        if '@' in output_dir:
+            # Replace @ with the project root directory
+            output_dir = output_dir.replace('@', osp.join(osp.dirname(__file__), "../"))
+            # Create a sub-folder in the output directory with the name of cfg.TASK_NAME
+            output_dir = osp.join(output_dir, cfg.TASK_NAME)
+            output_dir = osp.abspath(output_dir)
+
+        # Set up the logger
+        self.logger = MyLogger("mapping", save_dir=output_dir, use_timestamp=False)
+        # Because logger will create create a sub folder "version_xxx", we need to update the output_dir
+        output_dir = self.logger.save_dir
+
+        self.output_dir = output_dir
+        self.depth_method = cfg.DEPTH_METHOD
 
         self.pose = None
         self.pose_queue = []
@@ -93,53 +92,55 @@ class SemanticMapping:
         self.cam1 = camera_setup_1()
         self.cam6 = camera_setup_6()
         rospy.logwarn("currently only for front view")
+
         self.pcd = None
         self.pcd_frame_id = None
         self.pcd_queue = []
         self.pcd_header_queue = []
         self.pcd_time = None
-        self.pcd_intensity_threshold = 15
-        self.use_pcd_intensity = True
+        self.pcd_intensity_threshold = cfg.PCD.INTENSITY_THLD
+        self.use_pcd_intensity = cfg.PCD.USE_INTENSITY
 
         self.map = None
         self.map_pose = None
-        self.map_boundary = boundary
-        self.resolution = resolution  # Grid resolution in meters
-        self.map_value_max = 10  # prevent over confidence (deprecated)
-        self.map_decay = 4  # prevent over confidence
-        self.render_map_only = False  # only render large map at last
-        self.categories = [128, 140, 255, 107, 244]  # values of labels in the input images of mapping
-        self.categories_color = np.array([
-            [128, 64, 128],  # road
-            [140, 140, 200],  # crosswalk
-            [255, 255, 255],  # lane
-            [107, 142, 35],  # vegetation
-            [244, 35, 232]  # sidewalk
-        ])
-        self.map_width = int((boundary[0][1] - boundary[0][0]) / self.resolution)
-        self.map_height = int((boundary[1][1] - boundary[1][0]) / self.resolution)
-        self.map_depth = len(self.categories)
+        self.map_boundary = cfg.BOUNDARY
+        self.resolution = cfg.RESOLUTION
+        self.save_map_to_file = False
+        self.label_names = cfg.LABELS_NAMES
+        self.label_colors = np.array(cfg.LABEL_COLORS)
+
+        self.map_width = int((self.map_boundary[0][1] - self.map_boundary[0][0]) / self.resolution)
+        self.map_height = int((self.map_boundary[1][1] - self.map_boundary[1][0]) / self.resolution)
+        self.map_depth = len(self.label_names)
 
         self.position_rel = np.array([[0, 0, 0]]).T
         self.yaw_rel = 0
 
         self.preprocessing()
 
-        self.is_recording = False
-        self.recorded_log_odds = {"log_odds": [], "h": [], "color_map": []}
-        self.colored_map = None
-        self.record_max_length = 100
-        self.record_filename = "/home/henry/log_odds_2.pickle"
+        # This is a testing parameter, when the time stamp reach this number, the entire node will terminate.
+        self.test_cut_time = 1581541290
+
+        # Instruction
+        # 1. Please download the confusion matrix from the Google Drive
+        # 2. Then create a directory called "external_data/confusion_matrix" and save the download folder into the
+        # directory.
+        # 3. Set the load_path to the path of the cfn_mtx.npy
+        confusion_matrix = ConfusionMatrix(load_path=cfg.CONFUSION_MTX.LOAD_PATH)
+        self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
+
+        # Print the configuration to user
+        self.logger.log("Running with configuration:\n" + str(cfg))
 
     def preprocessing(self):
-        """ setup constant matrices """
+        """ Setup constant matrices """
         self.T_velodyne_to_basklink = self.set_velodyne_to_baselink()
         self.T_cam1_to_base = np.matmul(self.T_velodyne_to_basklink, self.cam1.T)
         self.T_cam6_to_base = np.matmul(self.T_velodyne_to_basklink, self.cam6.T)
 
         self.discretize_matrix_inv = np.array([
             [self.resolution, 0, self.map_boundary[0][0]],
-            [0, -self.resolution, self.map_boundary[1][1]],
+            [0, self.resolution, self.map_boundary[1][1]],
             [0, 0, 1],
         ]).astype(np.float)
         self.discretize_matrix = np.linalg.inv(self.discretize_matrix_inv)
@@ -213,8 +214,8 @@ class SemanticMapping:
     def pose_callback(self, msg):
         rospy.logdebug("Getting pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         self.pose_queue.append(msg)
-        if msg.header.stamp.secs == 1581541270:  # 1581541437: TODO: explain the magic number here
-            self.render_map_only = True
+        if msg.header.stamp.secs == self.test_cut_time:
+            self.save_map_to_file = True
         rospy.logdebug("Pose queue length: %d", len(self.pose_queue))
 
     def set_global_map_pose(self):
@@ -248,7 +249,6 @@ class SemanticMapping:
         rospy.logdebug("Setting current pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         return msg.pose, msg.header.stamp
 
-    # @profile
     def image_callback(self, msg):
         """
         The callback function for the camera image. When the semantic camera image is published, this function will be
@@ -259,11 +259,12 @@ class SemanticMapping:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
             print(e)
+            return
 
         if msg.header.frame_id == "camera1":
-            cam = self.cam1
+            camera_calibration = self.cam1
         elif msg.header.frame_id == "camera6":
-            cam = self.cam6
+            camera_calibration = self.cam6
         else:
             rospy.logwarn("cannot find camera for frame_id %s", msg.header.frame_id)
 
@@ -275,28 +276,19 @@ class SemanticMapping:
         self.pose, self.pose_time = self.update_pose(msg.header.stamp)
         self.set_global_map_pose()
 
-        color_map = self.mapping(image_in, self.pose, cam)
-        if color_map is not None:
-            try:
-                image_pub = self.bridge.cv2_to_imgmsg(color_map, encoding="passthrough")
-            except CvBridgeError as e:
-                print(e)
+        self.mapping(image_in, self.pose, camera_calibration)
 
-            # map is independent of camera
-            self.pub_semantic_local_map.publish(image_pub)
-            rospy.logdebug("Finished Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
-            rospy.signal_shutdown('Done with the mapping')
+        rospy.logdebug("Finished Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
 
-    def mapping(self, semantic_image, pose, cam):
+    def mapping(self, semantic_image, pose, camera_calibration):
         """
+        Receives the semantic segmentation image, the pose of the vehicle, and the calibration of the camera,
+        we will build a semantic point cloud, then project it into the 2D bird's eye view coordinates.
 
         Args:
-            semantic_image:
-            pose:
-            cam:
-
-        Returns:
-
+            semantic_image: 2D semantic image
+            pose: vehicle pose
+            camera_calibration: The calibration information of the camera
         """
         # Initialize the map
         if self.map is None:
@@ -310,37 +302,45 @@ class SemanticMapping:
             self.yaw_rel = euler[2]
 
         if self.depth_method in ['points_map', 'points_raw']:
-            pcd_in_range, pcd_label = self.project_pcd(self.pcd, self.pcd_frame_id, semantic_image, pose, cam)
-            updated_map = self.update_map(self.map, pcd_in_range, pcd_label)
+            pcd_in_range, pcd_label = self.project_pcd(self.pcd, self.pcd_frame_id, semantic_image, pose,
+                                                       camera_calibration)
             pcd_pub = create_point_cloud(pcd_in_range[0:3].T, pcd_label.T, frame_id=self.pcd_frame_id)
             self.pub_pcd.publish(pcd_pub)
-        else:
-            updated_map = self.update_map_planar(self.map, semantic_image, cam)
 
-        self.map = updated_map
-        # Generate color map
-        if self.render_map_only:
-            color_map = color_map_local(updated_map, self.categories, self.categories_color)
-            # color_map_with_car = self.add_car_to_map(np.array(color_map))
-            self.colored_map = color_map
-            print("writing image here")
-            cv2.imwrite('/home/henry/Pictures/global_map.png', color_map)
-            print("Done")
-            return color_map
+            self.map = self.update_map(self.map, pcd_in_range, pcd_label)
         else:
-            return None
+            self.map = self.update_map_planar(self.map, semantic_image, camera_calibration)
 
-    def project_pcd(self, pcd, pcd_frame_id, image, pose, cam):
+        if self.save_map_to_file:
+            color_map = render_bev_map(self.map, self.label_names, self.label_colors)
+
+            output_dir = self.output_dir
+            makedirs(output_dir, exist_ok=True)
+
+            output_file = osp.join(output_dir, "global_map.png")
+            print("Saving image to", output_file)
+            cv2.imwrite(output_file, color_map)
+
+            # Publish the image
+            try:
+                image_pub = self.bridge.cv2_to_imgmsg(color_map, encoding="passthrough")
+                self.pub_semantic_local_map.publish(image_pub)
+            except CvBridgeError as e:
+                print(e)
+
+            # TODO: This line of code is just for debugging purpose
+            rospy.signal_shutdown('Done with the mapping')
+
+    def project_pcd(self, pcd, pcd_frame_id, image, pose, camera_calibration):
         """
         Extract labels of each point in the pcd from image
-        
+
         Params:
             cam: camera calibration information, it includes the camera projection matrix.
         Return:
-            labels
+            point cloud that are visible in the image, and their associated labels
         """
-        if pcd is None:
-            return
+        if pcd is None: return
         if pcd_frame_id != "velodyne":
             T_base_to_origin = get_transform_from_pose(pose)
             T_origin_to_velodyne = np.linalg.inv(np.matmul(T_base_to_origin, self.T_velodyne_to_basklink))
@@ -349,7 +349,7 @@ class SemanticMapping:
         else:
             pcd_velodyne = homogenize(pcd[0:3, :])
 
-        IXY = dehomogenize(np.matmul(cam.P, pcd_velodyne)).astype(np.int32)
+        IXY = dehomogenize(np.matmul(camera_calibration.P, pcd_velodyne)).astype(np.int32)
 
         mask_positive = pcd_velodyne[0, :] > 0  # Only use the points in the front.
         mask = np.logical_and(np.logical_and(0 <= IXY[0, :], IXY[0, :] < image.shape[1]),
@@ -365,134 +365,61 @@ class SemanticMapping:
 
         return masked_pcd, label
 
-    # def require_new_map(self, pose):
-    #     transform_matrix, trans, rot, euler = get_transformation( frame_from='/base_link', frame_to='/global_map',
-    #                                                               time_from= self.pose_time, time_to=rospy.Time(0), static_frame='/world',
-    #                                                               tf_listener=self.tf_listener, tf_ros=self.tf_ros)
-    #     self.position_rel = np.array([[trans[0], trans[1], trans[2]]]).T
-    #     self.yaw_rel = euler[2]
-    #     if trans is None or self.map is None or np.abs(trans[0]) > 10 or np.abs(trans[1]) > 2 or np.linalg.norm(euler) > 0.1:
-    #         flag = True
-    #     else:
-    #         flag = False
-    #     rospy.logdebug("%s", "True" if flag else "False")
-    #     return flag
-
-    # def create_new_local_map(self, pose):
-    #     map_new = np.zeros((self.map_height , self.map_width, self.map_depth))
-    #     self.position_rel = np.array([[0, 0, 0]]).T
-    #     self.yaw_rel = 0
-    #     return map_new
-
-    # def transform_old_map(self, map_new, map_old, pose_old, pose_new):
-    #     if map_old is None:
-    #         return map_new
-    #     else:
-    #         points_old_map = homogenize(np.array(self.anchor_points))
-    #         points_old_local = np.matmul(self.discretize_matrix_inv, points_old_map)
-    #         points_old_local[2,:] = 0
-    #         points_old_local = homogenize(points_old_local)
-
-    #         # compute transformation (deprecated method, use tf istead for accuracy)
-    #         T_old_map_to_world = get_transform_from_pose(pose_old)
-    #         T_new_map_to_world = get_transform_from_pose(pose_new)
-    #         T_old_map_to_new_map = np.matmul(T_old_map_to_world, np.linalg.inv(T_new_map_to_world))
-
-    #         mat, _, _, _ = get_transformation( frame_from='/local_map', frame_to='/base_link',
-    #                                            time_from=rospy.Time(0), time_to=self.pose_time, static_frame='/world',
-    #                                            tf_listener=self.tf_listener, tf_ros=self.tf_ros )
-
-    #         if mat is not None:
-    #             T_old_map_to_new_map = mat
-
-    #         # compute new points
-    #         points_new_local = np.matmul(T_old_map_to_new_map, points_old_local)
-    #         points_new_local = points_new_local[0:2]
-    #         points_new_local = homogenize(points_new_local)
-    #         points_new_map = np.matmul(self.discretize_matrix, points_new_local)[0:2]
-
-    #         # generate homography
-    #         map_old_transformed, h = generate_homography(map_old, points_old_map[0:2].T, points_new_map.T, vis=False, return_h=True)
-
-    #         if self.is_recording:
-    #             self.recorded_log_odds["log_odds"].append(np.array(map_old))
-    #             self.recorded_log_odds["h"].append(np.array(h))
-    #             self.recorded_log_odds["color_map"].append(self.colored_map)
-    #             length = len(self.recorded_log_odds["log_odds"])
-    #             rospy.logwarn("length of record %d", length)
-    #             if length == self.record_max_length:
-    #                 with open(self.record_filename, 'wb') as filehandler:
-    #                     pickle.dump(self.recorded_log_odds, filehandler)
-    #                 print("recorded file to %s", self.record_filename)
-
-    #         # decay factor, make the map not as over confident
-    #         map_old_transformed = map_old_transformed / self.map_decay
-    #         return map_old_transformed
-
-    def update_map(self, map_local, pcd, label):
+    def update_map(self, map, pcd, label):
         """
         Project the semantic point cloud on the BEV map
 
-        TODO: This is the key part of our algorithm. Think about how to improve this.
-
         Args:
-            map_local:
-            pcd:
-            label:
+            map: np.ndarray with shape (H, W, C). H is the height, W is the width, and C is the semantic class.
+            pcd: np.ndarray with shape (4, N). N is the number of points. The point cloud
+            label: np.ndarray with shape (3, N). N is the number of points. The RGB label of each point cloud.
 
         Returns:
-
+            Updated map
         """
+        print("pcd limits", np.min(pcd[0]), np.max(pcd[0]), np.min(pcd[1]), np.max(pcd[1]))
 
-        normal = np.array([[0.0, 0.0, 1.0]]).T
-        # T_local_to_world = get_transform_from_pose(self.map_pose)
-        # T_world_to_local = np.linalg.inv(T_local_to_world)
+        normal = np.array([[0.0, 0.0, 1.0]]).T  # The normal of the z axis
         T_pcd_to_local, _, _, _ = get_transformation(
             frame_from=self.pcd_frame_id, time_from=self.pcd_time,
             frame_to='/global_map', time_to=rospy.Time(0),
             static_frame='world', tf_listener=self.tf_listener, tf_ros=self.tf_ros,
         )
-        print("pcd limits", np.min(pcd[0]), np.max(pcd[0]), np.min(pcd[1]), np.max(pcd[1]), )
         pcd_local = np.matmul(T_pcd_to_local, homogenize(pcd[0:3]))[0:3, :]
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
 
-        # Discretize point cloud into grid
-        pcd_pixel = np.matmul(self.discretize_matrix, homogenize(pcd_on_map[0:2, :])).astype(np.int32)
+        # Discretize point cloud into grid, Note that here we are basically doing the nearest neighbor search
+        pcd_pixel = ((pcd_on_map[0:2, :] - np.array([[self.map_boundary[0][0]], [self.map_boundary[1][0]]]))
+                     / self.resolution).astype(np.int32)
         print("pcd_pixel limits", np.min(pcd_pixel[0]), np.max(pcd_pixel[0]),
               np.min(pcd_pixel[1]), np.max(pcd_pixel[1]))
-        mask = np.logical_and(np.logical_and(0 <= pcd_pixel[0, :], pcd_pixel[0, :] < self.map_width),
-                              np.logical_and(0 <= pcd_pixel[1, :], pcd_pixel[1, :] < self.map_height))
+        on_grid_mask = np.logical_and(np.logical_and(0 <= pcd_pixel[0, :], pcd_pixel[0, :] < self.map_width),
+                                      np.logical_and(0 <= pcd_pixel[1, :], pcd_pixel[1, :] < self.map_height))
 
         # Update corresponding labels
-        for i in range(len(self.categories)):
-            idx = np.all(label == self.categories_color[i].reshape(3, 1), axis=0)
-            idx_mask = np.logical_and(idx, mask)
+        for i, label_name in enumerate(self.label_names):
+            # Code explanation:
+            # We first do an elementwise comparison
+            # a = (label == self.label_colors[i].reshape(3, 1))
+            # Then we do a logical AND among the rows of a, represented by *a.
+            idx = np.logical_and(*(label == self.label_colors[i].reshape(3, 1)))
+            idx_mask = np.logical_and(idx, on_grid_mask)
 
-            # For each cell, the count in this class will add by 2 and the count of another will be decreased by 1.
-            map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 2
-            # map_local[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] -= 1
+            # For all the points that have been classified as land, we augment its count by looking at its intensity
+            # print(label_name)
+            if label_name == "lane":
+                intensity_mask = np.logical_or(pcd[3] < 2, pcd[3] > 14)
+                intensity_mask = np.logical_and(intensity_mask, idx_mask)
+                map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], 2] += 1e8
 
-            # Intensity-aware
-            if self.use_pcd_intensity and (i == 1 or i == 2):  # i==1 is crosswalk, i==2 is the land.
-                mask_intensity = pcd[3, :] > self.pcd_intensity_threshold  # mask of high intensity
-                # map_local[pcd_pixel[1, mask_intensity], pcd_pixel[0, mask_intensity], i] += 1000 # only intensity
-                mask_intensity_idx = np.logical_and(mask_intensity,
-                                                    idx_mask)  # mask of current label with high intensity
+                print("intensity_mask", intensity_mask.shape, np.count_nonzero(intensity_mask))
 
-                # TODO: tune this formula for extra odds
-                # extra_odds added = (i-thred)
-                extra_odds = pcd[3, mask_intensity_idx] - self.pcd_intensity_threshold
-                map_local[pcd_pixel[1, mask_intensity_idx], pcd_pixel[
-                    0, mask_intensity_idx], i] += 10  # assign to current channel
+            # Update the local map with Bayes update rule
+            # y = pcd_pixel[1, idx_mask], x = pcd_pixel[0, idx_mask]
+            # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] has shape (n, num_classes)
+            map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
 
-        map_local[map_local < -10] = -10
-
-        # threshold and normalize
-        # map_local[map_local > self.map_value_max] = self.map_value_max
-        # print("max:", np.max(map_local))
-        # normalized_map = self.normalize_map(map_local)
-
-        return map_local
+        return map
 
     def update_map_planar(self, map_local, image, cam):
         """ Project the semantic image onto the map plane and update it """
@@ -521,8 +448,8 @@ class SemanticMapping:
         mask[:, 0:sep] = 0
         idx_mask_3 = np.zeros([map_local.shape[0], map_local.shape[1], 3])
 
-        for i in range(len(self.categories)):
-            idx = image_on_map[:, :, 0] == self.categories[i]
+        for i in range(len(self.label_names)):
+            idx = image_on_map[:, :, 0] == self.label_names[i]
             idx_mask = np.logical_and(idx, mask)
             map_local[idx_mask, i] += 1
             # idx_mask_3[idx_mask] = self.catogories_color[i]
@@ -538,13 +465,16 @@ class SemanticMapping:
 
         return map_local
 
-    def normalize_map(self, map_local):
-        normalized_map = np.array(map_local)
-        normalized_map = normalized_map * 255 / self.map_value_max
-        normalized_map = normalized_map.astype(np.uint8)
-        return normalized_map
-
     def add_car_to_map(self, color_map):
+        """
+        Warning: This function is not tested, may have bug!
+        Args:
+            color_map:
+
+        Returns:
+
+        """
+
         """ visualize ego car on the color map """
         # setting parameters
         length = 4.0
@@ -554,7 +484,7 @@ class SemanticMapping:
         car_center = np.array([[length / 4, width / 2]]).T / self.resolution
         discretize_matrix_inv = np.array([
             [self.resolution, 0, -length / 4],
-            [0, -self.resolution, width / 2],
+            [0, -self.resolution, width / 2],  # Warning: double check the sign of -self.resolution
             [0, 0, 1]
         ])
 
@@ -588,10 +518,33 @@ class SemanticMapping:
         return extrinsics
 
 
-# main
+def parse_args():
+    """ Parse the command line arguments """
+    parser = argparse.ArgumentParser(description='PycOccNet Training')
+    parser.add_argument(
+        '--cfg',
+        dest='config_file',
+        default='',
+        metavar='FILE',
+        help='path to config file',
+        type=str,
+    )
+
+    # Code inspired from https://discourse.ros.org/t/getting-python-argparse-to-work-with-a-launch-file-or-python-node/10606
+    # Note that here we use sys.argv[1:-2] as the last two parameters relate to roslaunch
+    args = parser.parse_args(sys.argv[1:-2])
+    return args
+
+
 def main():
     rospy.init_node('semantic_mapping')
-    sm = SemanticMapping(depth_method="points_map")
+
+    cfg = get_cfg_defaults()
+    args = parse_args()
+    if args.config_file:
+        cfg.merge_from_file(args.config_file)
+
+    sm = SemanticMapping(cfg)
     rospy.spin()
 
 

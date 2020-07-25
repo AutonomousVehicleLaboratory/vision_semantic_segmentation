@@ -151,8 +151,12 @@ bash ~/codebase/ros_workspace/src/vision_semantic_segmentation/scripts/initializ
 Then the only thing you need to do is launch Autoware by following Step 3 and 
 
 ```sh
+# Folloing code will run the default configuration 
 source ~/codebase/ros_workspace/devel/setup.bash
 roslaunch vision_semantic_segmentation camera1_mapping.launch
+
+# If you want to use your customized configuration, you can do
+roslaunch vision_semantic_segmentation camera1_mapping.launch mapping_args:="--cfg [path to your config.yaml]"
 ```
 
 ## ROS Node Information 
