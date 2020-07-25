@@ -54,9 +54,11 @@ class SemanticMapping:
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
         self.image_sub_cam1 = rospy.Subscriber("/camera1/semantic", Image, self.image_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
-        if cfg.DEPTH_METHOD == 'points_map':
+
+        self.depth_method = cfg.MAPPING.DEPTH_METHOD
+        if self.depth_method == 'points_map':
             self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
-        elif cfg.DEPTH_METHOD == 'points_raw':
+        elif self.depth_method == 'points_raw':
             self.sub_pcd = rospy.Subscriber("/points_raw", PointCloud2, self.pcd_callback)
         else:
             rospy.logwarn("Depth estimation method set to others, use planar assumption!")
@@ -82,9 +84,7 @@ class SemanticMapping:
         self.logger = MyLogger("mapping", save_dir=output_dir, use_timestamp=False)
         # Because logger will create create a sub folder "version_xxx", we need to update the output_dir
         output_dir = self.logger.save_dir
-
         self.output_dir = output_dir
-        self.depth_method = cfg.DEPTH_METHOD
 
         self.pose = None
         self.pose_queue = []
@@ -98,14 +98,13 @@ class SemanticMapping:
         self.pcd_queue = []
         self.pcd_header_queue = []
         self.pcd_time = None
-        self.pcd_intensity_threshold = cfg.PCD.INTENSITY_THLD
-        self.use_pcd_intensity = cfg.PCD.USE_INTENSITY
+        self.use_pcd_intensity = cfg.MAPPING.PCD.USE_INTENSITY
 
         self.map = None
         self.map_pose = None
-        self.map_boundary = cfg.BOUNDARY
-        self.resolution = cfg.RESOLUTION
         self.save_map_to_file = False
+        self.map_boundary = cfg.MAPPING.BOUNDARY
+        self.resolution = cfg.MAPPING.RESOLUTION
         self.label_names = cfg.LABELS_NAMES
         self.label_colors = np.array(cfg.LABEL_COLORS)
 
@@ -126,7 +125,7 @@ class SemanticMapping:
         # 2. Then create a directory called "external_data/confusion_matrix" and save the download folder into the
         # directory.
         # 3. Set the load_path to the path of the cfn_mtx.npy
-        confusion_matrix = ConfusionMatrix(load_path=cfg.CONFUSION_MTX.LOAD_PATH)
+        confusion_matrix = ConfusionMatrix(load_path=cfg.MAPPING.CONFUSION_MTX.LOAD_PATH)
         self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
 
         # Print the configuration to user

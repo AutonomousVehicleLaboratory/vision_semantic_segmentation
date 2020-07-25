@@ -8,6 +8,7 @@ Date:February 14, 2020
 # module
 from __future__ import absolute_import, division, print_function, unicode_literals  # python2 compatibility
 
+import argparse
 import cv2
 import os.path as osp
 import rospy
@@ -27,7 +28,7 @@ from shape_msgs.msg import Plane
 from visualization_msgs.msg import Marker, MarkerArray
 
 from src.camera import camera_setup_6, camera_setup_1
-from src.network.deeplab_v3_plus.config.demo import cfg
+from src.config.base_cfg import get_cfg_defaults
 from src.plane_3d import Plane3D
 from src.semantic_convex_hull import generate_convex_hull
 from src.semantic_segmentation import SemanticSegmentation  # source code
@@ -37,7 +38,10 @@ from src.vis import visualize_marker
 # classes
 class VisionSemanticSegmentationNode:
 
-    def __init__(self):
+    def __init__(self, cfg):
+        if cfg.VISION_SEM_SEG.IMAGE_SCALE < 0 or cfg.VISION_SEM_SEG.IMAGE_SCALE > 1:
+            raise ValueError("image scale should be in the range of [0, 1]")
+
         # Set up ros message subscriber
         # Note that topics ".../image_raw" are created by the launch file
         self.image_sub_cam1 = rospy.Subscriber("/camera1/image_raw", Image, self.image_callback)
@@ -51,12 +55,10 @@ class VisionSemanticSegmentationNode:
         self.pub_road_markers = rospy.Publisher("/road_convex_hull_rviz", MarkerArray, queue_size=10)
 
         # Load the configuration
-        # By default we are using the configuration config/avl.yaml
-        config_file = osp.dirname(__file__) + '/../config/avl.yaml'
-        cfg.merge_from_file(config_file)
-        self.seg = SemanticSegmentation(cfg)
+        network_cfg = cfg.VISION_SEM_SEG.SEM_SEG_NETWORK
+        self.seg = SemanticSegmentation(network_cfg)
         self.seg_color_fn = mapillary_visl.apply_color_map
-        self.seg_color_ref = mapillary_visl.get_labels(cfg.DATASET_CONFIG)
+        self.seg_color_ref = mapillary_visl.get_labels(network_cfg.DATASET_CONFIG)
 
         self.plane = None
         self.plane_last_update_time = rospy.get_rostime()
@@ -64,7 +66,7 @@ class VisionSemanticSegmentationNode:
         self.cam1 = camera_setup_1()
 
         self.hull_id = 0
-        self.image_scale = 100 / 100  # Resize the image to reduce the memory overhead, in percentage.
+        self.image_scale = cfg.VISION_SEM_SEG.IMAGE_SCALE  # Resize the image to reduce the memory overhead, in percentage.
         self.bridge = CvBridge()
 
     def image_callback(self, msg):
@@ -74,7 +76,6 @@ class VisionSemanticSegmentationNode:
         except CvBridgeError as e:
             print(e)
             return
-            # TODO: image_in will be undefined if this exception raises.
 
         ## ========== Image preprocessing
         image_in = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
@@ -198,10 +199,33 @@ class VisionSemanticSegmentationNode:
         self.plane_last_update_time = rospy.get_rostime()
 
 
-# main
+def parse_args():
+    """ Parse the command line arguments """
+    parser = argparse.ArgumentParser(description='PycOccNet Training')
+    parser.add_argument(
+        '--cfg',
+        dest='config_file',
+        default='',
+        metavar='FILE',
+        help='path to config file',
+        type=str,
+    )
+
+    # Code inspired from https://discourse.ros.org/t/getting-python-argparse-to-work-with-a-launch-file-or-python-node/10606
+    # Note that here we use sys.argv[1:-2] as the last two parameters relate to roslaunch
+    args = parser.parse_args(sys.argv[1:-2])
+    return args
+
+
 def main(args):
     rospy.init_node('vision_semantic_segmentation')
-    vss_node = VisionSemanticSegmentationNode()
+
+    cfg = get_cfg_defaults()
+    args = parse_args()
+    if args.config_file:
+        cfg.merge_from_file(args.config_file)
+
+    vss_node = VisionSemanticSegmentationNode(cfg)
     rate = rospy.Rate(15)  # ROS Rate at 15Hz, note that from rosbag, the image comes at 12Hz
 
     while not rospy.is_shutdown():
