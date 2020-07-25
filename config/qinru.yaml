@@ -1,3 +1,4 @@
+TASK_NAME: "tune_the_threshold"
 VISION_SEM_SEG:
   IMAGE_SCALE: 0.5
   SEM_SEG_NETWORK:

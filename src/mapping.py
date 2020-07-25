@@ -120,13 +120,10 @@ class SemanticMapping:
         # This is a testing parameter, when the time stamp reach this number, the entire node will terminate.
         self.test_cut_time = 1581541270
 
-        # Instruction
-        # 1. Please download the confusion matrix from the Google Drive
-        # 2. Then create a directory called "external_data/confusion_matrix" and save the download folder into the
-        # directory.
-        # 3. Set the load_path to the path of the cfn_mtx.npy
-        confusion_matrix = ConfusionMatrix(load_path=cfg.MAPPING.CONFUSION_MTX.LOAD_PATH)
-        self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
+        # confusion_matrix = ConfusionMatrix(load_path=cfg.MAPPING.CONFUSION_MTX.LOAD_PATH)
+        # self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
+        # Use Identity confusion matrix
+        self.confusion_matrix = np.eye(len(self.label_names))
 
         # Print the configuration to user
         self.logger.log("Running with configuration:\n" + str(cfg))

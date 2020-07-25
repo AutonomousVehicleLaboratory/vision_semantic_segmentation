@@ -134,7 +134,7 @@ def render_bev_map_with_thresholds(map, label_colors, priority=None, thresholds=
     probability is higher than the threshold will be rendered.
 
     Args:
-        map: np.ndarray (H, W, C). The log value of each layer in the map.
+        map: np.ndarray (H, W, C). The count value of each layer in the map.
         label_colors: corresponding color for each channel
         priority: priority of each label ordered from low to high, higher will overwrite lower colors
         thresholds: specify the threshold for each category, default to minimum requirement
@@ -150,10 +150,12 @@ def render_bev_map_with_thresholds(map, label_colors, priority=None, thresholds=
     if priority is not None and num_channels != len(priority):
         raise ValueError("Each channel should have a priority.")
 
+    if priority is None:
+        priority = np.arange(num_channels)
+
     # Normalize the map and convert it into probability
-    channel_log_sum = logsumexp(map, axis=2)
-    map_normalized = map - np.expand_dims(channel_log_sum, axis=2)
-    map_normalized = np.exp(map_normalized)
+    channel_sum = np.sum(map, axis=2, keepdims=True)
+    map_normalized = np.divide(map, channel_sum, out=np.zeros_like(map), where=(channel_sum != 0))
 
     # Reorder the map and label_colors with priority
     map_normalized = map_normalized[:, :, priority]
