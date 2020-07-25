@@ -27,7 +27,7 @@ from src.camera import camera_setup_1, camera_setup_6
 from src.config.base_cfg import get_cfg_defaults
 from src.data.confusion_matrix import ConfusionMatrix
 from src.homography import generate_homography
-from src.renderer import render_bev_map
+from src.renderer import render_bev_map, render_bev_map_with_thresholds
 from src.utils.utils import homogenize, dehomogenize, get_rotation_from_angle_2d
 from src.utils.utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
 from src.utils.logger import MyLogger
@@ -118,7 +118,7 @@ class SemanticMapping:
         self.preprocessing()
 
         # This is a testing parameter, when the time stamp reach this number, the entire node will terminate.
-        self.test_cut_time = 1581541290
+        self.test_cut_time = 1581541270
 
         # Instruction
         # 1. Please download the confusion matrix from the Google Drive
@@ -311,10 +311,14 @@ class SemanticMapping:
             self.map = self.update_map_planar(self.map, semantic_image, camera_calibration)
 
         if self.save_map_to_file:
-            color_map = render_bev_map(self.map, self.label_names, self.label_colors)
+            # color_map = render_bev_map(self.map, self.label_names, self.label_colors)
+            color_map = render_bev_map_with_thresholds(self.map, self.label_colors, priority=[3, 4, 0, 2, 1],
+                                                       thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
 
             output_dir = self.output_dir
             makedirs(output_dir, exist_ok=True)
+
+            np.save(osp.join(output_dir, "map.npy"), self.map)
 
             output_file = osp.join(output_dir, "global_map.png")
             print("Saving image to", output_file)
@@ -333,11 +337,11 @@ class SemanticMapping:
     def project_pcd(self, pcd, pcd_frame_id, image, pose, camera_calibration):
         """
         Extract labels of each point in the pcd from image
+        Args:
+            camera_calibration:camera calibration information, it includes the camera projection matrix.
 
-        Params:
-            cam: camera calibration information, it includes the camera projection matrix.
-        Return:
-            point cloud that are visible in the image, and their associated labels
+        Returns: Point cloud that are visible in the image, and their associated labels
+
         """
         if pcd is None: return
         if pcd_frame_id != "velodyne":
@@ -354,9 +358,6 @@ class SemanticMapping:
         mask = np.logical_and(np.logical_and(0 <= IXY[0, :], IXY[0, :] < image.shape[1]),
                               np.logical_and(0 <= IXY[1, :], IXY[1, :] < image.shape[0]))
         mask = np.logical_and(mask, mask_positive)
-
-        # mask_intensity = pcd[3, :] > self.pcd_intensity_threshold
-        # mask = np.logical_and(mask_intensity, mask)
 
         masked_pcd = pcd[:, mask]
         image_idx = IXY[:, mask]
@@ -406,17 +407,21 @@ class SemanticMapping:
 
             # For all the points that have been classified as land, we augment its count by looking at its intensity
             # print(label_name)
-            if label_name == "lane":
-                intensity_mask = np.logical_or(pcd[3] < 2, pcd[3] > 14)
-                intensity_mask = np.logical_and(intensity_mask, idx_mask)
-                map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], 2] += 1e8
-
-                print("intensity_mask", intensity_mask.shape, np.count_nonzero(intensity_mask))
+            # if label_name == "lane":
+            #     intensity_mask = np.logical_or(pcd[3] < 2, pcd[3] > 14)
+            #     intensity_mask = np.logical_and(intensity_mask, idx_mask)
+            #     map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], i] += 10
+            #
+            #     # For the region where there is no intensity by our network detected as lane, we will degrade its
+            #     # threshold
+            #     # non_intensity_mask = np.logical_and(~intensity_mask, idx_mask)
+            #     # map[pcd_pixel[1, non_intensity_mask], pcd_pixel[0, non_intensity_mask], i] -= 0.5
 
             # Update the local map with Bayes update rule
-            # y = pcd_pixel[1, idx_mask], x = pcd_pixel[0, idx_mask]
             # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] has shape (n, num_classes)
             map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
+
+            # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 1
 
         return map
 
