@@ -127,7 +127,7 @@ Now we need to set up the configuration for the semantic segmentation network.
    roslaunch vision_semantic_segmentation camera1_mapping.launch mapping_args:="--cfg ~/codebase/ros_workspace/src/vision_semantic_segmentation/config/example.yaml"
    ```
 
-   If no configuration file is provided, then we will run the default configuration. The default configuration is coded in `src/config/base_cfg.py`.
+   If no configuration file is provided, then we will run the default configuration. The default configuration is defined in `src/config/base_cfg.py`.
 
 Some general explanation about the parameters in the configuration system 
 
@@ -162,6 +162,30 @@ roslaunch vision_semantic_segmentation camera1_mapping.launch mapping_args:="--c
 # An example
 # roslaunch vision_semantic_segmentation camera1_mapping.launch mapping_args:="--cfg /home/users/qinru/codebase/ros_workspace/src/vision_semantic_segmentation/config/qinru.yaml"
 ```
+
+## To Run Experiment
+
+There are still some none trivial step for you to run our experiment presented in the paper, and that is why we are here to guide you. 
+
+To run the whole map generation, you should first set the `Start Time` in the Simulation Tab of the Autoware to `410`.  Then create an configuration file, and have the following keys set to
+
+```yaml
+TEST_END_TIME: 1581541450
+MAPPING:
+  BOUNDARY: [[0, 1000], [0, 1400]]
+  RESOLUTION: 0.2
+```
+
+To run a small region of the map for testing, you should first set the `Start Time` to `390`. Then use the following configuration 
+
+```yaml
+TEST_END_TIME: 1581541270 # Which is about 20s after 390s. 
+MAPPING:
+  BOUNDARY: [[100, 300], [800, 1000]]
+  RESOLUTION: 0.2		# This one doesn't really matter
+```
+
+Then pass these configuration into the roslaunch as shown in Step 4 and click the `Play ` in the Autoware, now you should be good to go!
 
 ## ROS Node Information 
 
@@ -202,14 +226,6 @@ Publishing
 topic: /semantic_local_map
 topic: /semantic_point_cloud
 ```
-
-## TODO
-
-- [x] ros wrapper for camera1 and camera6
-- [x] SemanticSegmentation class
-- [x] integration test with Autoware
-- [ ] record frequency and delay
-- [ ] semantic mapping
 
 ## Credits
 

@@ -100,6 +100,7 @@ class SemanticMapping:
         self.pcd_time = None
         self.use_pcd_intensity = cfg.MAPPING.PCD.USE_INTENSITY
 
+        # The coordinate of the map is defined as map[x, y]
         self.map = None
         self.map_pose = None
         self.save_map_to_file = False
@@ -108,8 +109,8 @@ class SemanticMapping:
         self.label_names = cfg.LABELS_NAMES
         self.label_colors = np.array(cfg.LABEL_COLORS)
 
-        self.map_width = int((self.map_boundary[0][1] - self.map_boundary[0][0]) / self.resolution)
-        self.map_height = int((self.map_boundary[1][1] - self.map_boundary[1][0]) / self.resolution)
+        self.map_height = int((self.map_boundary[0][1] - self.map_boundary[0][0]) / self.resolution)
+        self.map_width = int((self.map_boundary[1][1] - self.map_boundary[1][0]) / self.resolution)
         self.map_depth = len(self.label_names)
 
         self.position_rel = np.array([[0, 0, 0]]).T
@@ -118,9 +119,7 @@ class SemanticMapping:
         self.preprocessing()
 
         # This is a testing parameter, when the time stamp reach this number, the entire node will terminate.
-        # Usually, our start time frame is 390. If you want a shorter test time, you can set it to 1581541270,
-        # which is about 20 seconds.
-        self.test_cut_time = 1581541290
+        self.test_cut_time = cfg.TEST_END_TIME
 
         # confusion_matrix = ConfusionMatrix(load_path=cfg.MAPPING.CONFUSION_MTX.LOAD_PATH)
         # self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
@@ -212,7 +211,7 @@ class SemanticMapping:
     def pose_callback(self, msg):
         rospy.logdebug("Getting pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         self.pose_queue.append(msg)
-        if msg.header.stamp.secs == self.test_cut_time:
+        if msg.header.stamp.secs >= self.test_cut_time:
             self.save_map_to_file = True
         rospy.logdebug("Pose queue length: %d", len(self.pose_queue))
 
@@ -392,8 +391,8 @@ class SemanticMapping:
                      / self.resolution).astype(np.int32)
         print("pcd_pixel limits", np.min(pcd_pixel[0]), np.max(pcd_pixel[0]),
               np.min(pcd_pixel[1]), np.max(pcd_pixel[1]))
-        on_grid_mask = np.logical_and(np.logical_and(0 <= pcd_pixel[0, :], pcd_pixel[0, :] < self.map_width),
-                                      np.logical_and(0 <= pcd_pixel[1, :], pcd_pixel[1, :] < self.map_height))
+        on_grid_mask = np.logical_and(np.logical_and(0 <= pcd_pixel[0, :], pcd_pixel[0, :] < self.map_height),
+                                      np.logical_and(0 <= pcd_pixel[1, :], pcd_pixel[1, :] < self.map_width))
 
         # Update corresponding labels
         for i, label_name in enumerate(self.label_names):
@@ -405,8 +404,8 @@ class SemanticMapping:
             idx_mask = np.logical_and(idx, on_grid_mask)
 
             # Update the local map with Bayes update rule
-            # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] has shape (n, num_classes)
-            map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
+            # map[pcd_pixel[0, idx_mask], pcd_pixel[1, idx_mask], :] has shape (n, num_classes)
+            map[pcd_pixel[0, idx_mask], pcd_pixel[1, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
 
             # LiDAR intensity augmentation
             if not self.use_pcd_intensity: continue
@@ -419,7 +418,7 @@ class SemanticMapping:
 
                 # 2 is an experimental number which we think is good enough to connect the lane on the side.
                 # Too large the lane will be widen, too small the lane will be fragmented.
-                map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], i] += 2
+                map[pcd_pixel[0, intensity_mask], pcd_pixel[1, intensity_mask], i] += 2
 
                 # For the region where there is no intensity by our network detected as lane, we will degrade its
                 # threshold
