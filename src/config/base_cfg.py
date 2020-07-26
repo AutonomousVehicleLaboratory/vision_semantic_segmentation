@@ -32,6 +32,11 @@ _C.TASK_NAME = "cfn_mtx_with_intensity"
 # '@' here means the root directory of the project
 _C.OUTPUT_DIR = "@/outputs"
 
+# If the time stamp reaches this threshold, we will stop generating the map.
+# Usually, our start time frame is 390. If you want a shorter test time, you can set it to 1581541270, which is about
+# 20 seconds.
+_C.TEST_END_TIME = 1581541450
+
 # The associate index of each label in the semantic segmentation network
 _C.LABELS = [2, 1, 8, 10, 3]
 # The name of the label

@@ -33,7 +33,7 @@ def render_bev_map(map, label_colors):
     """
     Render the Bird's eye view semantic map, the color of each pixel is picked by the max number of points
     Args:
-        map: np.ndarray (H, W, C)
+        map: np.ndarray (W, H, C)
         label_colors: the RGB color of each label
 
     Returns:
@@ -45,11 +45,11 @@ def render_bev_map(map, label_colors):
         if len(c) != 3:
             raise ValueError("Color should be an RGB value.")
 
-    height, width, num_channels = map.shape
+    width, height, num_channels = map.shape
     if num_channels != len(label_colors):
         raise ValueError("Each channel should have a color!")
 
-    colored_map = np.zeros((height, width, 3)).astype(np.uint8)
+    colored_map = np.zeros((width, height, 3)).astype(np.uint8)
     map_argmax = np.argmax(map, axis=2)
     for i in range(num_channels):
         colored_map[map_argmax == i] = label_colors[i]
@@ -134,7 +134,7 @@ def render_bev_map_with_thresholds(map, label_colors, priority=None, thresholds=
     probability is higher than the threshold will be rendered.
 
     Args:
-        map: np.ndarray (H, W, C). The count value of each layer in the map.
+        map: np.ndarray (W, H, C). The count value of each layer in the map.
         label_colors: corresponding color for each channel
         priority: priority of each label ordered from low to high, higher will overwrite lower colors
         thresholds: specify the threshold for each category, default to minimum requirement
@@ -144,7 +144,7 @@ def render_bev_map_with_thresholds(map, label_colors, priority=None, thresholds=
         if len(c) != 3:
             raise ValueError("Color should be an RGB value.")
 
-    height, width, num_channels = map.shape
+    width, height, num_channels = map.shape
     if num_channels != len(label_colors):
         raise ValueError("Each channel should have a color.")
     if priority is not None and num_channels != len(priority):
@@ -164,7 +164,7 @@ def render_bev_map_with_thresholds(map, label_colors, priority=None, thresholds=
     # Identify the explored region by checking the sum of the map, we will only update these area.
     known_region = (np.sum(map, axis=2) != 0)
 
-    colored_map = np.zeros((height, width, 3)).astype(np.uint8)
+    colored_map = np.zeros((width, height, 3)).astype(np.uint8)
     for i, p in enumerate(priority):
         mask = np.logical_and(map_normalized[:, :, i] >= thresholds[i], known_region)
         colored_map[mask] = label_colors[i]
@@ -203,7 +203,7 @@ def exec_render_portion():
 
     # map_local = apply_filter(map_local)
 
-    color_map = render_bev_map_with_thresholds(map_local, priority, label_colors,
+    color_map = render_bev_map_with_thresholds(map_local, label_colors, priority,
                                                thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
 
     # color_map = fill_black(color_map)
