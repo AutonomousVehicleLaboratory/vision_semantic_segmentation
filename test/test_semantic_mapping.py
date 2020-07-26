@@ -4,21 +4,27 @@ import os
 import matplotlib.pyplot as plt
 
 
-def read_img(global_map_path):
-    """ read the global map file and covert colors to labels """
-    gmap = cv2.imread(global_map_path)
-    # gmap = np.rot90(gmap, k=1, axes=(0, 1))
+def convert_labels(gmap):
+    """ covert colors to labels """
     global_map = np.zeros((gmap.shape[0], gmap.shape[1]))
     global_map[np.all(gmap == np.array([128, 64, 128]), axis=-1)] = 1  # road
     global_map[np.all(gmap == np.array([140, 140, 200]), axis=-1)] = 2  # crosswalk
     global_map[np.all(gmap == np.array([244, 35, 232]), axis=-1)] = 3  # sidewalk
     global_map[np.all(gmap == np.array([255, 255, 255]), axis=-1)] = 4  # lane
     global_map[np.all(gmap == np.array([107, 142, 35]), axis=-1)] = 5  # vegetation
+    return global_map
+
+def read_img(global_map_path):
+    """ read the global map file and covert colors to labels """
+    global_map = cv2.imread(global_map_path)
+    # gmap = np.rot90(gmap, k=1, axes=(0, 1))
+    global_map = convert_labels(global_map)
+    
     return gmap, global_map
 
 
 class Test:
-    def __init__(self, ground_truth_dir="./"):
+    def __init__(self, ground_truth_dir="./", shift_h = 0, shift_w = 0):
         """
             Load the ground truth map and do transformations for it. Preprocess and store it for faster testing.
             ground_truth_dir: dir path to ground truth map
@@ -46,22 +52,22 @@ class Test:
 
         self.d = {0: "road", 1: "crosswalk"}
         self.class_lists = [1, 2]
+        self.shift_w = shift_w
+        self.shift_h = shift_h
 
     def full_test(self, dir_path="./global_maps", visualize=False):
         """
             test all the generated maps in dir_path folders
             dir_path: dir path to generated maps
         """
-        shift_w = 0  # 200
-        shift_h = 0  # 500
         file_lists = os.listdir(dir_path)
         file_lists = [x for x in file_lists if ".png" in x]
         path_lists = [os.path.join(dir_path, x) for x in file_lists]
         for path in path_lists:
             print("You are testing " + path.split("/")[-1])
             _, generate_map = read_img(path)
-            gmap = self.ground_truth_mask[shift_w:generate_map.shape[0] + shift_w,
-                   shift_h:generate_map.shape[1] + shift_h]
+            gmap = self.ground_truth_mask[self.shift_w:generate_map.shape[0] + self.shift_w,
+                   self.shift_h:generate_map.shape[1] + self.shift_h]
             self.iou(gmap, generate_map)
             if visualize:
                 # pdb.set_trace()
@@ -71,9 +77,19 @@ class Test:
                 generate_map[np.logical_not(mask)] = 0
                 self.imshow(gmap, generate_map)
 
+    def test_single_map(self, global_map):
+        """ Calculate and print the IoU, accuracy and missing rate
+            of the global_map and ground truth. 
+            global_map: the semantic global map
+        """
+        generate_map = convert_labels(global_map)
+        gmap = self.ground_truth_mask[self.shift_w:generate_map.shape[0] + self.shift_w,
+                   self.shift_h:generate_map.shape[1] + self.shift_h]
+        self.iou(gmap, generate_map)
+
     def iou(self, gmap, generate_map):
         """
-            calculate the iou, accuracy, missing rate
+            Calculate and print the IoU, accuracy, missing rate
             gmap: ground truth map with interger labels
             generate_map: generated map with interger labels
         """

@@ -81,6 +81,9 @@ _C.VISION_SEM_SEG = CN()
 # Determine the scale of the input image, from 0 to 1.
 _C.VISION_SEM_SEG.IMAGE_SCALE = 1.0
 
+# Ground truth semantic map label directory
+_C.GROUND_TRUTH_DIR = ""
+
 # --------------------------------------------------------------------------- #
 # Semantic Segmentation Network Configuration
 # --------------------------------------------------------------------------- #

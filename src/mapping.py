@@ -32,6 +32,7 @@ from src.utils.utils import homogenize, dehomogenize, get_rotation_from_angle_2d
 from src.utils.utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
 from src.utils.logger import MyLogger
 from src.utils.file_io import makedirs
+from test.test_semantic_mapping import Test
 
 
 class SemanticMapping:
@@ -128,6 +129,8 @@ class SemanticMapping:
 
         # Print the configuration to user
         self.logger.log("Running with configuration:\n" + str(cfg))
+
+        self.ground_truth_dir = cfg.GROUND_TRUTH_DIR
 
     def preprocessing(self):
         """ Setup constant matrices """
@@ -326,6 +329,11 @@ class SemanticMapping:
             output_file = osp.join(output_dir, "global_map.png")
             print("Saving image to", output_file)
             cv2.imwrite(output_file, color_map)
+
+            # evaluate
+            if self.ground_truth_dir != "":
+                test = Test(ground_truth_dir=self.ground_truth_dir)
+                test.test_single_map(color_map)
 
             # Publish the image
             try:
