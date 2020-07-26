@@ -89,7 +89,7 @@ class Test:
             acc = intersection / np.sum(gmap_layer)
             acc_lists.append(acc)
         miss = 1 - np.sum(np.logical_and((gmap > 0), (generate_map > 0))) / float(np.sum(gmap > 0))
-        accuracy = np.sum((gmap == generate_map)[gmap > 0]) / np.sum(gmap > 0)
+        accuracy = np.sum((gmap == generate_map)[gmap > 0]) / float(np.sum(gmap > 0))
 
         print("IOU for {}: {}\t{}: {}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1], iou_lists[1],
                                                         np.mean(iou_lists)))
