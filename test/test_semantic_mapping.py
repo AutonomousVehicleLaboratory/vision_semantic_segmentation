@@ -84,7 +84,6 @@ class Test:
             map_layer = generate_map == cls
             intersection = float(np.sum(gmap_layer * map_layer))
             union = float(np.sum(gmap_layer) + np.sum(map_layer) - intersection)
-            print(cls, np.sum(gmap_layer), np.sum(map_layer), intersection, union)
             iou = intersection / union
             iou_lists.append(iou)
             acc = intersection / np.sum(gmap_layer)
@@ -106,5 +105,14 @@ class Test:
 
 
 if __name__ == "__main__":
+
+    visualize = False # default to no visualization
+    import sys
+
+    # add arguement -v for visualization
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '-v':
+            visualize = True
+
     test = Test(ground_truth_dir="./ground_truth")
-    test.full_test(dir_path="./global_maps", visualize=True)
+    test.full_test(dir_path="./global_maps", visualize=visualize)

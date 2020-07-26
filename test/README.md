@@ -12,12 +12,13 @@ The file tree should look like this:
 ```bash
 .
 ├── README.md
-├── bev-5cm-crosswalks.jpg
-├── bev-5cm-road.jpg
+├── ground_truth
+│   └── bev-5cm-crosswalks.jpg
+│   └── bev-5cm-road.jpg
+│   └── truth.npy (if does not exist, this will be generated from the jpg files)
 ├── global_maps
 │   └── global_map_0721_new_filter.png
 ├── test_semantic_mapping.py
-└── truth.npy
 ```
 
 ## Usage
@@ -35,7 +36,7 @@ The file tree should look like this:
   To verify if the maps align, users can visalize two maps. Please pass `visualize=True` to `test.full_test` method. It will plot the ground truth map (left) and generated maps (right) with the same kinds of labels.
 
   ```bash
-  python3 test_semantic_mapping.py
+  python3 test_semantic_mapping.py -v
   ```
 
   
