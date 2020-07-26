@@ -3,7 +3,7 @@ Configuration for running the demo in AVL dataset
 """
 from __future__ import absolute_import
 from yacs.config import CfgNode as CN
-from deeplab_v3_plus.config.deeplab_v3_plus import _C as DEEPLAB_CN
+from src.network.deeplab_v3_plus.config.deeplab_v3_plus import _C as DEEPLAB_CN
 
 _C = CN()
 # Create public alias

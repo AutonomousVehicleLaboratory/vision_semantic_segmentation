@@ -27,7 +27,7 @@ from src.camera import camera_setup_1, camera_setup_6
 from src.config.base_cfg import get_cfg_defaults
 from src.data.confusion_matrix import ConfusionMatrix
 from src.homography import generate_homography
-from src.renderer import render_bev_map
+from src.renderer import render_bev_map, render_bev_map_with_thresholds
 from src.utils.utils import homogenize, dehomogenize, get_rotation_from_angle_2d
 from src.utils.utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
 from src.utils.logger import MyLogger
@@ -54,9 +54,11 @@ class SemanticMapping:
         self.sub_pose = rospy.Subscriber("/current_pose", PoseStamped, self.pose_callback)
         self.image_sub_cam1 = rospy.Subscriber("/camera1/semantic", Image, self.image_callback)
         self.image_sub_cam6 = rospy.Subscriber("/camera6/semantic", Image, self.image_callback)
-        if cfg.DEPTH_METHOD == 'points_map':
+
+        self.depth_method = cfg.MAPPING.DEPTH_METHOD
+        if self.depth_method == 'points_map':
             self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
-        elif cfg.DEPTH_METHOD == 'points_raw':
+        elif self.depth_method == 'points_raw':
             self.sub_pcd = rospy.Subscriber("/points_raw", PointCloud2, self.pcd_callback)
         else:
             rospy.logwarn("Depth estimation method set to others, use planar assumption!")
@@ -82,9 +84,7 @@ class SemanticMapping:
         self.logger = MyLogger("mapping", save_dir=output_dir, use_timestamp=False)
         # Because logger will create create a sub folder "version_xxx", we need to update the output_dir
         output_dir = self.logger.save_dir
-
         self.output_dir = output_dir
-        self.depth_method = cfg.DEPTH_METHOD
 
         self.pose = None
         self.pose_queue = []
@@ -98,14 +98,13 @@ class SemanticMapping:
         self.pcd_queue = []
         self.pcd_header_queue = []
         self.pcd_time = None
-        self.pcd_intensity_threshold = cfg.PCD.INTENSITY_THLD
-        self.use_pcd_intensity = cfg.PCD.USE_INTENSITY
+        self.use_pcd_intensity = cfg.MAPPING.PCD.USE_INTENSITY
 
         self.map = None
         self.map_pose = None
-        self.map_boundary = cfg.BOUNDARY
-        self.resolution = cfg.RESOLUTION
         self.save_map_to_file = False
+        self.map_boundary = cfg.MAPPING.BOUNDARY
+        self.resolution = cfg.MAPPING.RESOLUTION
         self.label_names = cfg.LABELS_NAMES
         self.label_colors = np.array(cfg.LABEL_COLORS)
 
@@ -119,15 +118,14 @@ class SemanticMapping:
         self.preprocessing()
 
         # This is a testing parameter, when the time stamp reach this number, the entire node will terminate.
+        # Usually, our start time frame is 390. If you want a shorter test time, you can set it to 1581541270,
+        # which is about 20 seconds.
         self.test_cut_time = 1581541290
 
-        # Instruction
-        # 1. Please download the confusion matrix from the Google Drive
-        # 2. Then create a directory called "external_data/confusion_matrix" and save the download folder into the
-        # directory.
-        # 3. Set the load_path to the path of the cfn_mtx.npy
-        confusion_matrix = ConfusionMatrix(load_path=cfg.CONFUSION_MTX.LOAD_PATH)
-        self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
+        # confusion_matrix = ConfusionMatrix(load_path=cfg.MAPPING.CONFUSION_MTX.LOAD_PATH)
+        # self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
+        # Use Identity confusion matrix
+        self.confusion_matrix = np.eye(len(self.label_names))
 
         # Print the configuration to user
         self.logger.log("Running with configuration:\n" + str(cfg))
@@ -312,10 +310,14 @@ class SemanticMapping:
             self.map = self.update_map_planar(self.map, semantic_image, camera_calibration)
 
         if self.save_map_to_file:
-            color_map = render_bev_map(self.map, self.label_names, self.label_colors)
+            # color_map = render_bev_map(self.map, self.label_names, self.label_colors)
+            color_map = render_bev_map_with_thresholds(self.map, self.label_colors, priority=[3, 4, 0, 2, 1],
+                                                       thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
 
             output_dir = self.output_dir
             makedirs(output_dir, exist_ok=True)
+
+            np.save(osp.join(output_dir, "map.npy"), self.map)
 
             output_file = osp.join(output_dir, "global_map.png")
             print("Saving image to", output_file)
@@ -334,11 +336,11 @@ class SemanticMapping:
     def project_pcd(self, pcd, pcd_frame_id, image, pose, camera_calibration):
         """
         Extract labels of each point in the pcd from image
+        Args:
+            camera_calibration:camera calibration information, it includes the camera projection matrix.
 
-        Params:
-            cam: camera calibration information, it includes the camera projection matrix.
-        Return:
-            point cloud that are visible in the image, and their associated labels
+        Returns: Point cloud that are visible in the image, and their associated labels
+
         """
         if pcd is None: return
         if pcd_frame_id != "velodyne":
@@ -355,9 +357,6 @@ class SemanticMapping:
         mask = np.logical_and(np.logical_and(0 <= IXY[0, :], IXY[0, :] < image.shape[1]),
                               np.logical_and(0 <= IXY[1, :], IXY[1, :] < image.shape[0]))
         mask = np.logical_and(mask, mask_positive)
-
-        # mask_intensity = pcd[3, :] > self.pcd_intensity_threshold
-        # mask = np.logical_and(mask_intensity, mask)
 
         masked_pcd = pcd[:, mask]
         image_idx = IXY[:, mask]
@@ -405,19 +404,27 @@ class SemanticMapping:
             idx = np.logical_and(*(label == self.label_colors[i].reshape(3, 1)))
             idx_mask = np.logical_and(idx, on_grid_mask)
 
+            # Update the local map with Bayes update rule
+            # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] has shape (n, num_classes)
+            map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
+
+            # LiDAR intensity augmentation
+            if not self.use_pcd_intensity: continue
+
             # For all the points that have been classified as land, we augment its count by looking at its intensity
             # print(label_name)
             if label_name == "lane":
-                intensity_mask = np.logical_or(pcd[3] < 2, pcd[3] > 14)
+                intensity_mask = np.logical_or(pcd[3] < 2, pcd[3] > 14)  # These thresholds are found by experiment.
                 intensity_mask = np.logical_and(intensity_mask, idx_mask)
-                map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], 2] += 1e8
 
-                print("intensity_mask", intensity_mask.shape, np.count_nonzero(intensity_mask))
+                # 2 is an experimental number which we think is good enough to connect the lane on the side.
+                # Too large the lane will be widen, too small the lane will be fragmented.
+                map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], i] += 2
 
-            # Update the local map with Bayes update rule
-            # y = pcd_pixel[1, idx_mask], x = pcd_pixel[0, idx_mask]
-            # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] has shape (n, num_classes)
-            map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
+                # For the region where there is no intensity by our network detected as lane, we will degrade its
+                # threshold
+                # non_intensity_mask = np.logical_and(~intensity_mask, idx_mask)
+                # map[pcd_pixel[1, non_intensity_mask], pcd_pixel[0, non_intensity_mask], i] -= 0.5
 
         return map
 

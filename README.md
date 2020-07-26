@@ -115,23 +115,25 @@ roslaunch vision_semantic_segmentation camera1_mapping.launch
 
 Now we need to set up the configuration for the semantic segmentation network. 
 
-> We have saved the network weight in the `/mnt/avl_shared/qinru/iros2020/resnext50_os8`, you don't have to download it if you are using the cluster. 
+> Note: We have saved the network weight in the `/mnt/avl_shared/qinru/iros2020/resnext50_os8`, you don't have to download it if you are using the cluster. 
 
-1. Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Papers-Publications-IROS2020-Semantic Mapping-network-resnext50_os8-run1-model_best.pth`). 
+1. Download the trained weight from Google Drive (`Living Laboratory-AVLResearch-Papers-Publications-IROS2020-Semantic Mapping-network-resnext50_os8-run1-model_best.pth`), and save it into your path.
 
-2. Create your local configuration by creating a copy from the template YAML file
+2. If you want to change the parameter of the configuration file, you can create your own YAML file and pass it into the `roslaunch` comment. 
 
+   An example of this is 
+
+   ```sh
+   roslaunch vision_semantic_segmentation camera1_mapping.launch mapping_args:="--cfg ~/codebase/ros_workspace/src/vision_semantic_segmentation/config/example.yaml"
    ```
-   # In the root directory 
-   cd ~/codebase/ros_workspace/src/vision_semantic_segmentation
-   
-   cp config/template.yaml config/avl.yaml
-   ```
 
-3. Make sure the configuration of `config/avl.yaml` is set up correctly. We have already provide the default value, but you may want to change it. 
-   *  `MODEL.WEIGHT` corresponds to the path to the trained weight.
-   * `DATASET_CONFIG` corresponds to the path to the configuration file of the dataset so that you can visualize the semantic output in color, it is the `config/class_19.json` in this repository.  
-   * Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
+   If no configuration file is provided, then we will run the default configuration. The default configuration is coded in `src/config/base_cfg.py`.
+
+Some general explanation about the parameters in the configuration system 
+
+*  `MODEL.WEIGHT` corresponds to the path to the trained weight.
+* `DATASET_CONFIG` corresponds to the path to the configuration file of the dataset so that you can visualize the semantic output in color, it is the `config/class_19.json` in this repository.  
+* Make sure `DATASET.NUM_CLASSES` is equal to the number of classes. 
 
 ### TL;DR
 
@@ -157,6 +159,8 @@ roslaunch vision_semantic_segmentation camera1_mapping.launch
 
 # If you want to use your customized configuration, you can do
 roslaunch vision_semantic_segmentation camera1_mapping.launch mapping_args:="--cfg [path to your config.yaml]"
+# An example
+# roslaunch vision_semantic_segmentation camera1_mapping.launch mapping_args:="--cfg /home/users/qinru/codebase/ros_workspace/src/vision_semantic_segmentation/config/qinru.yaml"
 ```
 
 ## ROS Node Information 

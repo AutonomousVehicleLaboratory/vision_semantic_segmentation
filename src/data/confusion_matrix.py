@@ -76,3 +76,12 @@ if __name__ == '__main__':
     # for i in range(len(indices)):
     #     assert sub_mtx[i, 0] == cfn_mtx[indices[i], indices[0]]
     print(sub_mtx)
+
+    # Test if the sum of each class is correct
+    map = np.zeros((300, 400, 5))
+    mask = np.zeros((300, 400)).astype(bool)
+    mask[:, 0] = True
+
+    map[mask, :] += sub_mtx[0, :].reshape(1, -1)
+
+    print()

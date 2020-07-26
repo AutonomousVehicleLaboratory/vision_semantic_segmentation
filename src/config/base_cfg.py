@@ -1,5 +1,13 @@
 # The basic configuration system
+import os.path as osp
+import sys
+
+# Add src directory into the path
+sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "../")))
+
 from yacs.config import CfgNode as CN
+
+from src.network.deeplab_v3_plus.config.demo import cfg as network_cfg
 
 _C = CN()
 
@@ -24,15 +32,6 @@ _C.TASK_NAME = "cfn_mtx_with_intensity"
 # '@' here means the root directory of the project
 _C.OUTPUT_DIR = "@/outputs"
 
-# The resolution of the occupancy grid in meters
-_C.RESOLUTION = 0.1
-# The boundary of the occupancy grid, in meters. The format of the boundary is [[xmin, xmax], [ymin, ymax]]
-_C.BOUNDARY = [[100, 300], [800, 1000]]
-# This variable defines the way how we estimate the depth from the image. If use "points_map", then we are using the
-# offline point cloud map. If use the points_raw", then we are using the the online point cloud map, i.e. the output
-# from the LiDAR per frame.
-_C.DEPTH_METHOD = 'points_map'
-
 # The associate index of each label in the semantic segmentation network
 _C.LABELS = [2, 1, 8, 10, 3]
 # The name of the label
@@ -46,12 +45,54 @@ _C.LABEL_COLORS = [
     [244, 35, 232],  # sidewalk
 ]
 
-# Point cloud setting
-_C.PCD = CN()
-# The point cloud intensity threshold. We use this to identify the high intensity area in the point cloud map.
-_C.PCD.INTENSITY_THLD = 15
-_C.PCD.USE_INTENSITY = True  # Use intensity to augment the data if True
+# --------------------------------------------------------------------------- #
+# Mapping Configuration
+# --------------------------------------------------------------------------- #
+_C.MAPPING = CN()
 
-_C.CONFUSION_MTX = CN()
+# The resolution of the occupancy grid in meters
+_C.MAPPING.RESOLUTION = 0.1
+# The boundary of the occupancy grid, in meters. The format of the boundary is [[xmin, xmax], [ymin, ymax]]
+_C.MAPPING.BOUNDARY = [[100, 300], [800, 1000]]
+# This variable defines the way how we estimate the depth from the image. If use "points_map", then we are using the
+# offline point cloud map. If use the points_raw", then we are using the the online point cloud map, i.e. the output
+# from the LiDAR per frame.
+_C.MAPPING.DEPTH_METHOD = 'points_map'
+
+# Point cloud setting
+_C.MAPPING.PCD = CN()
+# If True, use the point cloud intensity data to augment our semantic BEV estimation
+_C.MAPPING.PCD.USE_INTENSITY = True
+
+_C.MAPPING.CONFUSION_MTX = CN()
 # The load path of the confusion matrix
-_C.CONFUSION_MTX.LOAD_PATH = "/home/users/qinru/codebase/ros_workspace/src/vision_semantic_segmentation/external_data/confusion_matrix/run_trad_cnn/cfn_mtx.npy"
+_C.MAPPING.CONFUSION_MTX.LOAD_PATH = "/home/users/qinru/codebase/ros_workspace/src/vision_semantic_segmentation/external_data/confusion_matrix/run_trad_cnn/cfn_mtx.npy"
+
+# --------------------------------------------------------------------------- #
+# Vision Semantic Segmentation Configuration
+# --------------------------------------------------------------------------- #
+_C.VISION_SEM_SEG = CN()
+
+# Determine the scale of the input image, from 0 to 1.
+_C.VISION_SEM_SEG.IMAGE_SCALE = 1.0
+
+# --------------------------------------------------------------------------- #
+# Semantic Segmentation Network Configuration
+# --------------------------------------------------------------------------- #
+network_cfg.TRAIN_DATASET = "Mapillary"
+network_cfg.DATASET_CONFIG = "/mnt/avl_shared/qinru/iros2020/resnext50_os8/config.json"
+
+network_cfg.MODEL.TYPE = "DeepLabv3+"
+# Path to Pre-trained or checkpointed weights
+network_cfg.MODEL.WEIGHT = "/mnt/avl_shared/qinru/iros2020/resnext50_os8/run1/model_best.pth"
+# When set to True, the model will use synchronized batch normalization
+network_cfg.MODEL.SYNC_BN = False
+network_cfg.MODEL.DECODER.LOW_LEVEL_OUT_CHANNELS = 256
+network_cfg.MODEL.BACKBONE = "resnext50_32x4d"
+network_cfg.MODEL.OUTPUT_STRIDE = 8
+
+network_cfg.DATASET.NAME = "AVL"
+network_cfg.DATASET.IN_CHANNELS = 3
+network_cfg.DATASET.NUM_CLASSES = 19
+
+_C.VISION_SEM_SEG.SEM_SEG_NETWORK = network_cfg
