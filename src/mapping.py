@@ -27,7 +27,7 @@ from src.camera import camera_setup_1, camera_setup_6
 from src.config.base_cfg import get_cfg_defaults
 from src.data.confusion_matrix import ConfusionMatrix
 from src.homography import generate_homography
-from src.renderer import render_bev_map, render_bev_map_with_thresholds
+from src.renderer import render_bev_map, render_bev_map_with_thresholds, apply_filter
 from src.utils.utils import homogenize, dehomogenize, get_rotation_from_angle_2d
 from src.utils.utils_ros import set_map_pose, get_transformation, get_transform_from_pose, create_point_cloud
 from src.utils.logger import MyLogger
@@ -216,9 +216,11 @@ class SemanticMapping:
         rospy.logdebug("Pose queue length: %d", len(self.pose_queue))
 
     def set_global_map_pose(self):
+        """ global map origin is shifted to the min x, y point in the point map
+        so that the entire map will have positive values """
         pose = Pose()
-        pose.position.x = -1369.0496826171875  # TODO: These numbers need explanation
-        pose.position.y = -562.84814453125
+        pose.position.x = -1369.0496826171875 # min x
+        pose.position.y = -562.84814453125 # min y
         pose.position.z = 0.0
         pose.orientation.w = 1.0
         set_map_pose(pose, '/world', 'global_map')
@@ -310,13 +312,16 @@ class SemanticMapping:
 
         if self.save_map_to_file:
             # color_map = render_bev_map(self.map, self.label_names, self.label_colors)
+            
+            # np.save(osp.join(output_dir, "map.npy"), self.map)
+            
+            self.map = apply_filter(self.map) # smooth the labels to fill black holes
+
             color_map = render_bev_map_with_thresholds(self.map, self.label_colors, priority=[3, 4, 0, 2, 1],
                                                        thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
 
             output_dir = self.output_dir
-            makedirs(output_dir, exist_ok=True)
-
-            np.save(osp.join(output_dir, "map.npy"), self.map)
+            makedirs(output_dir, exist_ok=True)            
 
             output_file = osp.join(output_dir, "global_map.png")
             print("Saving image to", output_file)
