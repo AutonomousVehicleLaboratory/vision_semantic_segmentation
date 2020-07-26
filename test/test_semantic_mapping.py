@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 
 def read_img(global_map_path):
+    """ read the global map file and covert colors to labels """
     gmap = cv2.imread(global_map_path)
     # gmap = np.rot90(gmap, k=1, axes=(0, 1))
     global_map = np.zeros((gmap.shape[0], gmap.shape[1]))
@@ -17,13 +18,21 @@ def read_img(global_map_path):
 
 
 class Test:
-    def __init__(self, ground_truth_dir="./", preprocess=True):
+    def __init__(self, ground_truth_dir="./"):
         """
             Load the ground truth map and do transformations for it. Preprocess and store it for faster testing.
             ground_truth_dir: dir path to ground truth map
             preprocess: reprocess the rgb ground truth map to interger label if true.
         """
-        if preprocess:
+        truth_file_path = os.path.join(ground_truth_dir, "truth.npy")
+
+        if os.path.exists(truth_file_path):
+            print(truth_file_path, "exists, openning it.")
+            with open(truth_file_path, 'rb') as f:
+                self.ground_truth_mask = np.load(f)
+        else:
+            # preprocess to generate the file
+            print(truth_file_path, "does not exist, preprocess the ground truth to generate it.")
             crosswalks = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-crosswalks.jpg"))
             road = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-road.jpg"))
             w, h = road.shape[:2]
@@ -32,13 +41,9 @@ class Test:
             self.ground_truth_mask = np.zeros((road.shape[0], road.shape[1]))
             self.ground_truth_mask[np.any(road > 0, axis=-1)] = 1  # road
             self.ground_truth_mask[np.any(crosswalks > 0, axis=-1)] = 2  # crosswalk
-            with open("truth.npy", 'wb') as f:
+            with open(truth_file_path, 'wb') as f:
                 np.save(f, self.ground_truth_mask)
-        else:
-            with open("truth.npy", 'rb') as f:
-                self.ground_truth_mask = np.load(f)
-        # rotate the ground truth mask to align with the generated map
-        # self.ground_truth_mask = np.rot90(self.ground_truth_mask, k=1, axes=(0, 1))
+
         self.d = {0: "road", 1: "crosswalk"}
         self.class_lists = [1, 2]
 
@@ -77,13 +82,14 @@ class Test:
         for cls in self.class_lists:
             gmap_layer = gmap == cls
             map_layer = generate_map == cls
-            intersection = np.sum(gmap_layer * map_layer)
-            union = np.sum(gmap_layer) + np.sum(map_layer) - intersection
+            intersection = float(np.sum(gmap_layer * map_layer))
+            union = float(np.sum(gmap_layer) + np.sum(map_layer) - intersection)
+            print(cls, np.sum(gmap_layer), np.sum(map_layer), intersection, union)
             iou = intersection / union
             iou_lists.append(iou)
             acc = intersection / np.sum(gmap_layer)
             acc_lists.append(acc)
-        miss = 1 - np.sum(np.logical_and((gmap > 0), (generate_map > 0))) / np.sum(gmap > 0)
+        miss = 1 - np.sum(np.logical_and((gmap > 0), (generate_map > 0))) / float(np.sum(gmap > 0))
         accuracy = np.sum((gmap == generate_map)[gmap > 0]) / np.sum(gmap > 0)
 
         print("IOU for {}: {}\t{}: {}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1], iou_lists[1],
@@ -100,6 +106,5 @@ class Test:
 
 
 if __name__ == "__main__":
-    preprocess = False
-    test = Test(ground_truth_dir="./", preprocess=preprocess)
+    test = Test(ground_truth_dir="./ground_truth")
     test.full_test(dir_path="./global_maps", visualize=True)
