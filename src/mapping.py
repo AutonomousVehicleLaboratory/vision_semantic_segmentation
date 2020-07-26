@@ -118,7 +118,9 @@ class SemanticMapping:
         self.preprocessing()
 
         # This is a testing parameter, when the time stamp reach this number, the entire node will terminate.
-        self.test_cut_time = 1581541270
+        # Usually, our start time frame is 390. If you want a shorter test time, you can set it to 1581541270,
+        # which is about 20 seconds.
+        self.test_cut_time = 1581541290
 
         # confusion_matrix = ConfusionMatrix(load_path=cfg.MAPPING.CONFUSION_MTX.LOAD_PATH)
         # self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
@@ -402,23 +404,27 @@ class SemanticMapping:
             idx = np.logical_and(*(label == self.label_colors[i].reshape(3, 1)))
             idx_mask = np.logical_and(idx, on_grid_mask)
 
-            # For all the points that have been classified as land, we augment its count by looking at its intensity
-            # print(label_name)
-            # if label_name == "lane":
-            #     intensity_mask = np.logical_or(pcd[3] < 2, pcd[3] > 14)
-            #     intensity_mask = np.logical_and(intensity_mask, idx_mask)
-            #     map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], i] += 10
-            #
-            #     # For the region where there is no intensity by our network detected as lane, we will degrade its
-            #     # threshold
-            #     # non_intensity_mask = np.logical_and(~intensity_mask, idx_mask)
-            #     # map[pcd_pixel[1, non_intensity_mask], pcd_pixel[0, non_intensity_mask], i] -= 0.5
-
             # Update the local map with Bayes update rule
             # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] has shape (n, num_classes)
             map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
 
-            # map[pcd_pixel[1, idx_mask], pcd_pixel[0, idx_mask], i] += 1
+            # LiDAR intensity augmentation
+            if not self.use_pcd_intensity: continue
+
+            # For all the points that have been classified as land, we augment its count by looking at its intensity
+            # print(label_name)
+            if label_name == "lane":
+                intensity_mask = np.logical_or(pcd[3] < 2, pcd[3] > 14)  # These thresholds are found by experiment.
+                intensity_mask = np.logical_and(intensity_mask, idx_mask)
+
+                # 2 is an experimental number which we think is good enough to connect the lane on the side.
+                # Too large the lane will be widen, too small the lane will be fragmented.
+                map[pcd_pixel[1, intensity_mask], pcd_pixel[0, intensity_mask], i] += 2
+
+                # For the region where there is no intensity by our network detected as lane, we will degrade its
+                # threshold
+                # non_intensity_mask = np.logical_and(~intensity_mask, idx_mask)
+                # map[pcd_pixel[1, non_intensity_mask], pcd_pixel[0, non_intensity_mask], i] -= 0.5
 
         return map
 
