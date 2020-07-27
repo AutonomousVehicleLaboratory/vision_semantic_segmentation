@@ -79,6 +79,8 @@ _C.MAPPING.PCD.RANGE_MAX = 100.0
 _C.MAPPING.CONFUSION_MTX = CN()
 # The load path of the confusion matrix
 _C.MAPPING.CONFUSION_MTX.LOAD_PATH = ""
+# The store and load path of deterministic input to the mapping process
+_C.MAPPING.INPUT_DIR = ""
 
 # --------------------------------------------------------------------------- #
 # Vision Semantic Segmentation Configuration
