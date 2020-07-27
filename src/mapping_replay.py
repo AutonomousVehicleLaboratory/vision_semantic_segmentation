@@ -12,6 +12,7 @@ import os
 import os.path as osp
 import rospy
 import sys
+import hickle
 
 # Add src directory into the path
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "../")))
@@ -162,11 +163,9 @@ class SemanticMapping:
 
     def mapping_replay(self):
         # load files
-        import pickle
-
         print("Loading input files ...")
-        with open(os.path.join(self.input_dir, "input_list.pkl2"), 'rb') as fp:
-            self.input_list = pickle.load(fp)
+        with open(os.path.join(self.input_dir, "input_list.hkl"), 'rb') as fp:
+            self.input_list = hickle.load(fp)
         print("File loaded!")
 
         # Initialize the map

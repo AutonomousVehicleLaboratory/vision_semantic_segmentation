@@ -12,6 +12,7 @@ import os
 import os.path as osp
 import rospy
 import sys
+import hickle
 
 # Add src directory into the path
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "../")))
@@ -320,15 +321,9 @@ class SemanticMapping:
             self.map = self.update_map_planar(self.map, semantic_image, camera_calibration)
 
         if self.save_map_to_file:
-            import pickle
-            # self.unique_input_dict["final_map"] = np.array(self.map)
-            with open(os.path.join(self.input_dir, "input_list.pkl2"), 'wb') as fp:
+            with open(os.path.join(self.input_dir, "input_list.hkl"), 'wb') as fp:
                 print("writing input_list ...")
-                pickle.dump(self.input_list, fp)
-            # with open(os.path.join(self.input_dir, "unique_input_dict.pkl2"), 'wb') as fp:
-            #     print("writing unique_input_dict ...")
-            #     pickle.dump(self.unique_input_dict , fp)
-                
+                hickle.dump(self.input_list, fp, mode='w')    
                         
             output_dir = self.output_dir
             makedirs(output_dir, exist_ok=True)
