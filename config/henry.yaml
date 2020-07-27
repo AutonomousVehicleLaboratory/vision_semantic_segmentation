@@ -1,11 +1,19 @@
-TASK_NAME: "map_gen"
+TASK_NAME: "test_no_random"
+RNG_SEED: -1
 TEST_END_TIME: 1581541450
+# TEST_END_TIME: 1581541290
+GROUND_TRUTH_DIR: "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/test/ground_truth/"
 MAPPING:
   BOUNDARY: [[0, 600], [0, 1400]]
+  # BOUNDARY: [[0, 300], [0, 1000]]
   RESOLUTION: 0.2
-GROUND_TRUTH_DIR: "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/test/ground_truth/"
+  PCD:
+    USE_INTENSITY: True
+    RANGE_MAX: 20.0
+  CONFUSION_MTX:
+    LOAD_PATH: "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/external_data/confusion_matrix/run_trad_cnn/cfn_mtx.npy"
 VISION_SEM_SEG:
-  IMAGE_SCALE: 0.5
+  IMAGE_SCALE: 1.0
   SEM_SEG_NETWORK:
     TRAIN_DATASET: "Mapillary"
     # You may need to customize dataset configuration

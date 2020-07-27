@@ -5,7 +5,7 @@
 
 ## Setup
 
-Please put the generated maps that you want to test in the `./global_maps` directory. Please put ground truth maps  (`bev-5cm-crosswalks.jpg`, `bev-5cm-road.jpg`) in current directory i.e `./`. 
+Please put the generated maps that you want to test in the `./global_maps` directory. Please put ground truth maps  (`bev-5cm-crosswalks.jpg`, `bev-5cm-road.jpg`) in `./ground_truth/`. 
 
 The file tree should look like this:
 
