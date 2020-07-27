@@ -37,6 +37,12 @@ _C.OUTPUT_DIR = "@/outputs"
 # 20 seconds.
 _C.TEST_END_TIME = 1581541450
 
+# Ground truth semantic map label directory
+_C.GROUND_TRUTH_DIR = ""
+
+# Set the random seed of the network for reproducibility
+_C.RNG_SEED = -1
+
 # The associate index of each label in the semantic segmentation network
 _C.LABELS = [2, 1, 8, 10, 3]
 # The name of the label
@@ -81,9 +87,6 @@ _C.VISION_SEM_SEG = CN()
 
 # Determine the scale of the input image, from 0 to 1.
 _C.VISION_SEM_SEG.IMAGE_SCALE = 1.0
-
-# Ground truth semantic map label directory
-_C.GROUND_TRUTH_DIR = ""
 
 # --------------------------------------------------------------------------- #
 # Semantic Segmentation Network Configuration

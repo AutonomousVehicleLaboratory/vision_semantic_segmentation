@@ -9,14 +9,11 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 # parameters
 
 import os.path as osp
-import sys
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
 
-sys.path.insert(0, "network")
-
-from deeplab_v3_plus.models.build import build_model
+from src.network.deeplab_v3_plus.models.build import build_model
 
 
 # classes

@@ -14,6 +14,7 @@ import os.path as osp
 import rospy
 import numpy as np
 import sys
+import torch
 
 # Add src directory into the path
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "../")))
@@ -29,6 +30,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 from src.camera import camera_setup_6, camera_setup_1
 from src.config.base_cfg import get_cfg_defaults
+from src.network.core.utils.torch_util import set_random_seed
 from src.plane_3d import Plane3D
 from src.semantic_convex_hull import generate_convex_hull
 from src.semantic_segmentation import SemanticSegmentation  # source code
@@ -217,13 +219,18 @@ def parse_args():
     return args
 
 
-def main(args):
+def main():
     rospy.init_node('vision_semantic_segmentation')
 
     cfg = get_cfg_defaults()
     args = parse_args()
     if args.config_file:
         cfg.merge_from_file(args.config_file)
+
+    if cfg.RNG_SEED > -1:
+        set_random_seed(cfg.RNG_SEED)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     vss_node = VisionSemanticSegmentationNode(cfg)
     rate = rospy.Rate(15)  # ROS Rate at 15Hz, note that from rosbag, the image comes at 12Hz
@@ -233,4 +240,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()

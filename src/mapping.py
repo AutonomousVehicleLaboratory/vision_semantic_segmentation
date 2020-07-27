@@ -259,7 +259,7 @@ class SemanticMapping:
         The callback function for the camera image. When the semantic camera image is published, this function will be
         invoked and generate a BEV semantic map from the image.
         """
-        rospy.logdebug("Mapping image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
+        self.logger.log("Mapping image at: {}.{:.9f}s".format(msg.header.stamp.secs, msg.header.stamp.nsecs))
         try:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
@@ -317,15 +317,15 @@ class SemanticMapping:
             self.map = self.update_map_planar(self.map, semantic_image, camera_calibration)
 
         if self.save_map_to_file:
+            output_dir = self.output_dir
+            makedirs(output_dir, exist_ok=True)
             # np.save(osp.join(output_dir, "map.npy"), self.map)
+
             self.map = apply_filter(self.map)  # smooth the labels to fill black holes
 
             color_map = render_bev_map(self.map, self.label_colors)
             # color_map = render_bev_map_with_thresholds(self.map, self.label_colors, priority=[3, 4, 0, 2, 1],
             #                                            thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
-
-            output_dir = self.output_dir
-            makedirs(output_dir, exist_ok=True)
 
             output_file = osp.join(output_dir, "global_map.png")
             print("Saving image to", output_file)
