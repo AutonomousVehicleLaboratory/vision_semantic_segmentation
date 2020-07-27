@@ -99,6 +99,7 @@ class SemanticMapping:
         self.pcd_queue = []
         self.pcd_header_queue = []
         self.pcd_time = None
+        self.pcd_range_max = cfg.MAPPING.PCD.RANGE_MAX
         self.use_pcd_intensity = cfg.MAPPING.PCD.USE_INTENSITY
 
         # The coordinate of the map is defined as map[x, y]
@@ -122,10 +123,12 @@ class SemanticMapping:
         # This is a testing parameter, when the time stamp reach this number, the entire node will terminate.
         self.test_cut_time = cfg.TEST_END_TIME
 
-        # confusion_matrix = ConfusionMatrix(load_path=cfg.MAPPING.CONFUSION_MTX.LOAD_PATH)
-        # self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
-        # Use Identity confusion matrix
-        self.confusion_matrix = np.eye(len(self.label_names))
+        if cfg.MAPPING.CONFUSION_MTX.LOAD_PATH != "":
+            confusion_matrix = ConfusionMatrix(load_path=cfg.MAPPING.CONFUSION_MTX.LOAD_PATH)
+            self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
+        else:
+            # Use Identity confusion matrix
+            self.confusion_matrix = np.eye(len(self.label_names))
 
         # Print the configuration to user
         self.logger.log("Running with configuration:\n" + str(cfg))
@@ -222,8 +225,8 @@ class SemanticMapping:
         """ global map origin is shifted to the min x, y point in the point map
         so that the entire map will have positive values """
         pose = Pose()
-        pose.position.x = -1369.0496826171875 # min x
-        pose.position.y = -562.84814453125 # min y
+        pose.position.x = -1369.0496826171875  # min x
+        pose.position.y = -562.84814453125  # min y
         pose.position.z = 0.0
         pose.orientation.w = 1.0
         set_map_pose(pose, '/world', 'global_map')
@@ -314,17 +317,15 @@ class SemanticMapping:
             self.map = self.update_map_planar(self.map, semantic_image, camera_calibration)
 
         if self.save_map_to_file:
-            # color_map = render_bev_map(self.map, self.label_names, self.label_colors)
-            
             # np.save(osp.join(output_dir, "map.npy"), self.map)
-            
-            self.map = apply_filter(self.map) # smooth the labels to fill black holes
+            self.map = apply_filter(self.map)  # smooth the labels to fill black holes
 
-            color_map = render_bev_map_with_thresholds(self.map, self.label_colors, priority=[3, 4, 0, 2, 1],
-                                                       thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
+            color_map = render_bev_map(self.map, self.label_colors)
+            # color_map = render_bev_map_with_thresholds(self.map, self.label_colors, priority=[3, 4, 0, 2, 1],
+            #                                            thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
 
             output_dir = self.output_dir
-            makedirs(output_dir, exist_ok=True)            
+            makedirs(output_dir, exist_ok=True)
 
             output_file = osp.join(output_dir, "global_map.png")
             print("Saving image to", output_file)
@@ -332,7 +333,7 @@ class SemanticMapping:
 
             # evaluate
             if self.ground_truth_dir != "":
-                test = Test(ground_truth_dir=self.ground_truth_dir)
+                test = Test(ground_truth_dir=self.ground_truth_dir, logger=self.logger)
                 test.test_single_map(color_map)
 
             # Publish the image
@@ -365,7 +366,10 @@ class SemanticMapping:
 
         IXY = dehomogenize(np.matmul(camera_calibration.P, pcd_velodyne)).astype(np.int32)
 
-        mask_positive = pcd_velodyne[0, :] > 0  # Only use the points in the front.
+        # Only use the points in the front.
+        mask_positive = np.logical_and(0 < pcd_velodyne[0, :], pcd_velodyne[0, :] < self.pcd_range_max)
+
+        # Only select the points that project to the image
         mask = np.logical_and(np.logical_and(0 <= IXY[0, :], IXY[0, :] < image.shape[1]),
                               np.logical_and(0 <= IXY[1, :], IXY[1, :] < image.shape[0]))
         mask = np.logical_and(mask, mask_positive)
@@ -418,7 +422,7 @@ class SemanticMapping:
 
             # Update the local map with Bayes update rule
             # map[pcd_pixel[0, idx_mask], pcd_pixel[1, idx_mask], :] has shape (n, num_classes)
-            map[pcd_pixel[0, idx_mask], pcd_pixel[1, idx_mask], :] += self.confusion_matrix[i, :].reshape(1, -1)
+            map[pcd_pixel[0, idx_mask], pcd_pixel[1, idx_mask], :] += self.confusion_matrix[:, i].reshape(1, -1)
 
             # LiDAR intensity augmentation
             if not self.use_pcd_intensity: continue

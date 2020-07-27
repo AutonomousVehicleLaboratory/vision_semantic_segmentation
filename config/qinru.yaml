@@ -1,8 +1,16 @@
-TASK_NAME: "map_gen"
-TEST_END_TIME: 1581541450
+TASK_NAME: "cfn_mtx_0726"
+#TEST_END_TIME: 1581541450
+TEST_END_TIME: 1581541290
+GROUND_TRUTH_DIR: "/home/users/qinru/codebase/ros_workspace/src/vision_semantic_segmentation/external_data/ground_truth/"
 MAPPING:
   BOUNDARY: [[0, 600], [0, 1400]]
+  #  BOUNDARY: [[0, 300], [0, 1000]]
   RESOLUTION: 0.2
+  PCD:
+    USE_INTENSITY: True
+    RANGE_MAX: 20.0
+  CONFUSION_MTX:
+    LOAD_PATH: "/home/users/qinru/codebase/ros_workspace/src/vision_semantic_segmentation/external_data/confusion_matrix/run_trad_cnn/cfn_mtx.npy"
 VISION_SEM_SEG:
   IMAGE_SCALE: 0.5
   SEM_SEG_NETWORK:

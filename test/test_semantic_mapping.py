@@ -14,17 +14,18 @@ def convert_labels(gmap):
     global_map[np.all(gmap == np.array([107, 142, 35]), axis=-1)] = 5  # vegetation
     return global_map
 
+
 def read_img(global_map_path):
     """ read the global map file and covert colors to labels """
     global_map = cv2.imread(global_map_path)
     # gmap = np.rot90(gmap, k=1, axes=(0, 1))
     global_map = convert_labels(global_map)
-    
+
     return gmap, global_map
 
 
 class Test:
-    def __init__(self, ground_truth_dir="./", shift_h = 0, shift_w = 0):
+    def __init__(self, ground_truth_dir="./", shift_h=0, shift_w=0, logger=None):
         """
             Load the ground truth map and do transformations for it. Preprocess and store it for faster testing.
             ground_truth_dir: dir path to ground truth map
@@ -54,6 +55,7 @@ class Test:
         self.class_lists = [1, 2]
         self.shift_w = shift_w
         self.shift_h = shift_h
+        self.logger = logger
 
     def full_test(self, dir_path="./global_maps", visualize=False):
         """
@@ -84,7 +86,7 @@ class Test:
         """
         generate_map = convert_labels(global_map)
         gmap = self.ground_truth_mask[self.shift_w:generate_map.shape[0] + self.shift_w,
-                   self.shift_h:generate_map.shape[1] + self.shift_h]
+               self.shift_h:generate_map.shape[1] + self.shift_h]
         self.iou(gmap, generate_map)
 
     def iou(self, gmap, generate_map):
@@ -107,11 +109,12 @@ class Test:
         miss = 1 - np.sum(np.logical_and((gmap > 0), (generate_map > 0))) / float(np.sum(gmap > 0))
         accuracy = np.sum((gmap == generate_map)[gmap > 0]) / float(np.sum(gmap > 0))
 
-        print("IOU for {}: {}\t{}: {}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1], iou_lists[1],
-                                                        np.mean(iou_lists)))
-        print("Accuracy for {}: {}\t{}: {}\tmean Accuracy: {}".format(self.d[0], acc_lists[0], self.d[1], acc_lists[1],
-                                                                      accuracy))
-        print("Overall Missing rate: {}".format(miss))
+        if self.logger:
+            self.logger.log("IOU for {}: {}\t{}: {}\tmIOU: {}".format(self.d[0], iou_lists[0],
+                                                                      self.d[1], iou_lists[1], np.mean(iou_lists)))
+            self.logger.log("Accuracy for {}: {}\t{}: {}\tmean Accuracy: {}".format(self.d[0], acc_lists[0],
+                                                                                    self.d[1], acc_lists[1], accuracy))
+            self.logger.log("Overall Missing rate: {}".format(miss))
 
     def imshow(self, img1, img2):
         fig, axes = plt.subplots(1, 2)
@@ -122,7 +125,7 @@ class Test:
 
 if __name__ == "__main__":
 
-    visualize = False # default to no visualization
+    visualize = False  # default to no visualization
     import sys
 
     # add arguement -v for visualization

@@ -68,10 +68,11 @@ _C.MAPPING.DEPTH_METHOD = 'points_map'
 _C.MAPPING.PCD = CN()
 # If True, use the point cloud intensity data to augment our semantic BEV estimation
 _C.MAPPING.PCD.USE_INTENSITY = True
+_C.MAPPING.PCD.RANGE_MAX = 100.0
 
 _C.MAPPING.CONFUSION_MTX = CN()
 # The load path of the confusion matrix
-_C.MAPPING.CONFUSION_MTX.LOAD_PATH = "/home/users/qinru/codebase/ros_workspace/src/vision_semantic_segmentation/external_data/confusion_matrix/run_trad_cnn/cfn_mtx.npy"
+_C.MAPPING.CONFUSION_MTX.LOAD_PATH = ""
 
 # --------------------------------------------------------------------------- #
 # Vision Semantic Segmentation Configuration
