@@ -395,14 +395,15 @@ class SemanticMapping:
         print("pcd limits", np.min(pcd[0]), np.max(pcd[0]), np.min(pcd[1]), np.max(pcd[1]))
 
         normal = np.array([[0.0, 0.0, 1.0]]).T  # The normal of the z axis
-        T_pcd_to_local, _, _, _ = get_transformation(
-            frame_from=self.pcd_frame_id, time_from=self.pcd_time,
-            frame_to='/global_map', time_to=rospy.Time(0),
-            static_frame='world', tf_listener=self.tf_listener, tf_ros=self.tf_ros,
-        )
-        pcd_local = np.matmul(T_pcd_to_local, homogenize(pcd[0:3]))[0:3, :]
+        # T_pcd_to_local, _, _, _ = get_transformation(
+        #     frame_from=self.pcd_frame_id, time_from=self.pcd_time,
+        #     frame_to='/global_map', time_to=rospy.Time(0),
+        #     static_frame='world', tf_listener=self.tf_listener, tf_ros=self.tf_ros,
+        # )
+        # pcd_local = np.matmul(T_pcd_to_local, homogenize(pcd[0:3]))[0:3, :]
+        pcd_origin_offset = np.array([[1369.0496826171875], [562.84814453125], [0.0]]) # pcd origin with respect to map origin
+        pcd_local = pcd[0:3] + pcd_origin_offset
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
-
         # Discretize point cloud into grid, Note that here we are basically doing the nearest neighbor search
         pcd_pixel = ((pcd_on_map[0:2, :] - np.array([[self.map_boundary[0][0]], [self.map_boundary[1][0]]]))
                      / self.resolution).astype(np.int32)
