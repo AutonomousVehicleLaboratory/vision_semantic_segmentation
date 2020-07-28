@@ -148,32 +148,34 @@ class SemanticMapping:
             Please specify the input_dir in the config file.
         """
         if os.path.exists(self.input_dir):
-            for filename in os.listdir(self.input_dir):
-                if filename.endswith('.hkl'):
-                    hkl_file =  os.path.join(self.input_dir, filename)
+            for file_name in os.listdir(self.input_dir):
+                if file_name.endswith('.hkl'):
+                    hkl_file =  os.path.join(self.input_dir, file_name)
                     print("Loading input file " + hkl_file)
                     with open(hkl_file, 'rb') as hkl_file_pointer:
                         input_list = hickle.load(hkl_file_pointer)
                         print("Hkl file loaded!")
-                        self.mapping_replay(input_list)
+                        self.mapping_replay(input_list, file_name[0:-4])
                         hkl_file_pointer.close()
 
     def mapping_replay_file(self):
-        """ replay a single hkl file in the input_dir directory
+        """ Replay a single hkl file in the input_dir directory
             Please specify the input_dir in the config file.
         """
         # load files
-        hkl_file = os.path.join(self.input_dir, "input_list_0.hkl")
+        file_name = "input_list_0.hkl"
+        hkl_file = os.path.join(self.input_dir, file_name)
         print("Loading input file " + hkl_file )
         with open(hkl_file, 'rb') as hkl_file_pointer:
             input_list = hickle.load(hkl_file_pointer)
             print("Hkl file loaded!")
-            self.mapping_replay(input_list)
+            self.mapping_replay(input_list, file_name[0:-4])
 
 
-    def mapping_replay(self, input_list):
+    def mapping_replay(self, input_list, file_name):
         """ Map the given input to a semantic global map
             input_list: a list of data frames, each frame is a dictionary stores the data
+            file_name: name of the input file, append to global map to distinguish them.
         """
         # Initialize the map
         self.map = np.zeros((self.map_height, self.map_width, self.map_depth))
@@ -199,7 +201,7 @@ class SemanticMapping:
         # color_map = render_bev_map_with_thresholds(self.map, self.label_colors, priority=[3, 4, 0, 2, 1],
         #                                            thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
 
-        output_file = osp.join(output_dir, "global_map.png")
+        output_file = osp.join(output_dir, "global_map_" + file_name + ".png")
         print("Saving image to", output_file)
         cv2.imwrite(output_file, color_map)
 
