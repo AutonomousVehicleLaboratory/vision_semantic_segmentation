@@ -10,7 +10,6 @@ import cv2
 import numpy as np
 import os
 import os.path as osp
-import rospy
 import sys
 import hickle
 
@@ -51,22 +50,6 @@ class SemanticMapping:
         """
         # Sanity check
         assert len(cfg.LABELS) == len(cfg.LABELS_NAMES) == len(cfg.LABEL_COLORS)
-
-        # self.depth_method = cfg.MAPPING.DEPTH_METHOD
-        # if self.depth_method == 'points_map':
-        #     self.sub_pcd = rospy.Subscriber("/reduced_map", PointCloud2, self.pcd_callback)
-        # elif self.depth_method == 'points_raw':
-        #     self.sub_pcd = rospy.Subscriber("/points_raw", PointCloud2, self.pcd_callback)
-        # else:
-        #     rospy.logwarn("Depth estimation method set to others, use planar assumption!")
-
-        # # Set up ros publishers
-        # self.pub_semantic_local_map = rospy.Publisher("/semantic_local_map", Image, queue_size=5)
-        # self.pub_pcd = rospy.Publisher("/semantic_point_cloud", PointCloud2, queue_size=5)
-
-        # self.tf_listener = TransformListener()
-        # self.tf_ros = TransformerROS()
-        # self.bridge = CvBridge()
 
         # Set up the output directory
         output_dir = cfg.OUTPUT_DIR  # type:str
@@ -160,19 +143,43 @@ class SemanticMapping:
         T[0:3, -1::] = t
         return T
 
+    def mapping_replay_dir(self):
+        """ Replay all input hkl files in the input_dir directory 
+            Please specify the input_dir in the config file.
+        """
+        if os.path.exists(self.input_dir):
+            for filename in os.listdir(self.input_dir):
+                if filename.endswith('.hkl'):
+                    hkl_file =  os.path.join(self.input_dir, filename)
+                    print("Loading input file " + hkl_file)
+                    with open(hkl_file, 'rb') as hkl_file_pointer:
+                        input_list = hickle.load(hkl_file_pointer)
+                        print("Hkl file loaded!")
+                        self.mapping_replay(input_list)
+                        hkl_file_pointer.close()
 
-    def mapping_replay(self):
+    def mapping_replay_file(self):
+        """ replay a single hkl file in the input_dir directory
+            Please specify the input_dir in the config file.
+        """
         # load files
-        print("Loading input files ...")
-        with open(os.path.join(self.input_dir, "input_list.hkl"), 'rb') as fp:
-            self.input_list = hickle.load(fp)
-        print("File loaded!")
+        hkl_file = os.path.join(self.input_dir, "input_list_0.hkl")
+        print("Loading input file " + hkl_file )
+        with open(hkl_file, 'rb') as hkl_file_pointer:
+            input_list = hickle.load(hkl_file_pointer)
+            print("Hkl file loaded!")
+            self.mapping_replay(input_list)
 
+
+    def mapping_replay(self, input_list):
+        """ Map the given input to a semantic global map
+            input_list: a list of data frames, each frame is a dictionary stores the data
+        """
         # Initialize the map
         self.map = np.zeros((self.map_height, self.map_width, self.map_depth))
         camera_calibration = self.cam1
 
-        for frame_input_dict in self.input_list:
+        for frame_input_dict in input_list:
             pcd = frame_input_dict["pcd"]
             pcd_frame_id = frame_input_dict["pcd_frame_id"]
             semantic_image = frame_input_dict["semantic_image"]
@@ -200,8 +207,6 @@ class SemanticMapping:
         if self.ground_truth_dir != "":
             test = Test(ground_truth_dir=self.ground_truth_dir, logger=self.logger)
             test.test_single_map(color_map)
-
-        exit(0)
 
 
     def project_pcd(self, pcd, pcd_frame_id, image, pose, camera_calibration):
@@ -293,50 +298,6 @@ class SemanticMapping:
 
         return map
 
-    def update_map_planar(self, map_local, image, cam):
-        """ Project the semantic image onto the map plane and update it """
-
-        points_map = homogenize(np.array(self.anchor_points_2))
-        points_local = np.matmul(self.discretize_matrix_inv, points_map)
-        points_local[2, :] = 0
-        points_local = homogenize(points_local)
-
-        T_local_to_base, _, _, _ = get_transformation(frame_from='/local_map', time_from=rospy.Time(0),
-                                                      frame_to='/base_link', time_to=self.pose_time,
-                                                      static_frame='world',
-                                                      tf_listener=self.tf_listener, tf_ros=self.tf_ros)
-        T_base_to_velodyne = np.linalg.inv(self.T_velodyne_to_basklink)
-        T_local_to_velodyne = np.matmul(T_base_to_velodyne, T_local_to_base)
-
-        # compute new points
-        points_velodyne = np.matmul(T_local_to_velodyne, points_local)
-        points_image = dehomogenize(np.matmul(cam.P, points_velodyne))
-
-        # generate homography
-        image_on_map = generate_homography(image, points_image.T, self.anchor_points_2.T, vis=False,
-                                           out_size=[self.map_width, self.map_height])
-        sep = int((8 - self.map_boundary[0][0]) / self.resolution)
-        mask = np.ones(map_local.shape[0:2])
-        mask[:, 0:sep] = 0
-        idx_mask_3 = np.zeros([map_local.shape[0], map_local.shape[1], 3])
-
-        for i in range(len(self.label_names)):
-            idx = image_on_map[:, :, 0] == self.label_names[i]
-            idx_mask = np.logical_and(idx, mask)
-            map_local[idx_mask, i] += 1
-            # idx_mask_3[idx_mask] = self.catogories_color[i]
-        # cv2.imshow("mask", idx_mask_3.astype(np.uint8))
-        # cv2.waitKey(1)
-
-        map_local[map_local < 0] = 0
-
-        # threshold and normalize
-        # map_local[map_local > self.map_value_max] = self.map_value_max
-        # print("max:", np.max(map_local))
-        # normalized_map = self.normalize_map(map_local)
-
-        return map_local
-
 def parse_args():
     """ Parse the command line arguments """
     parser = argparse.ArgumentParser(description='PycOccNet Training')
@@ -356,17 +317,15 @@ def parse_args():
 
 
 def main():
-    # rospy.init_node('semantic_mapping')
-
     cfg = get_cfg_defaults()
     args = parse_args()
     if args.config_file:
         cfg.merge_from_file(args.config_file)
     
     sm = SemanticMapping(cfg)
-    sm.mapping_replay()
-    # rospy.spin()
-
+    # sm.mapping_replay_file()
+    sm.mapping_replay_dir()
+    
 
 if __name__ == "__main__":
     main()
