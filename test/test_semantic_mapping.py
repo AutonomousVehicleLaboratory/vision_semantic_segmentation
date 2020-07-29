@@ -34,15 +34,18 @@ class Test:
             preprocess: reprocess the rgb ground truth map to interger label if true.
         """
         truth_file_path = os.path.join(ground_truth_dir, "truth.npy")
+        mask_file_path = os.path.join(ground_truth_dir, "mask.npy")
 
-        if os.path.exists(truth_file_path):
-            print(truth_file_path, "exists, openning it.")
+        if os.path.exists(truth_file_path) and os.path.exists(mask_file_path):
+            print(truth_file_path, "and", mask_file_path, "exists, openning it.")
             with open(truth_file_path, 'rb') as f:
                 self.ground_truth_mask = np.load(f)
+            with open(mask_file_path, 'rb') as f:
+                self.mask = np.load(f)
         else:
             # preprocess to generate the file
             print(truth_file_path, "does not exist, preprocess the ground truth to generate it.")
-            crosswalks = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-crosswalks.jpg"))
+            crosswalks = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-crosswalk.jpg"))
             road = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-road.jpg"))
             lane = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-lanes.jpg"))
             mask = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-mask.jpg"))
@@ -63,15 +66,11 @@ class Test:
             self.ground_truth_mask[np.logical_and(np.any(road > 0, axis=-1), mask)] = 1  # road
             self.ground_truth_mask[np.logical_and(np.any(lane > 0, axis=-1), mask)] = 3  # lanes
             self.ground_truth_mask[np.logical_and(np.any(crosswalks > 0, axis=-1), mask)] = 2  # crosswalk
-            with open("truth.npy", 'wb') as f:
+            with open(truth_file_path, 'wb') as f:
                 np.save(f, self.ground_truth_mask)
-            with open("mask.npy", 'wb') as f:
+            with open(mask_file_path, 'wb') as f:
                 np.save(f, mask)
-        else:
-            with open("truth.npy", 'rb') as f:
-                self.ground_truth_mask = np.load(f)
-            with open("mask.npy", 'rb') as f:
-                self.mask = np.load(f)
+        
         self.d = {0: "road", 1: "crosswalk", 2: "lane"}
         self.class_lists = [1, 2, 3]
         self.shift_w = shift_w
@@ -112,7 +111,8 @@ class Test:
                                                                np.mean(iou_lists)))
         print("Overall Missing rate: {}".format(miss))
         if latex_mode:
-            print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
+            pass
+            # print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
 
     def test_single_map(self, global_map):
         """ Calculate and print the IoU, accuracy and missing rate
@@ -141,8 +141,8 @@ class Test:
             iou_lists.append(iou)
             acc = intersection / np.sum(gmap_layer)
             acc_lists.append(acc)
-        miss = 1 - np.sum(np.logical_and((gmap > 0), (generate_map > 0))) / np.sum(gmap > 0)
-        accuracy = np.sum((gmap == generate_map)[gmap > 0]) / np.sum(gmap > 0)
+        miss = 1 - np.sum(np.logical_and((gmap > 0), (generate_map > 0))) / float(np.sum(gmap > 0))
+        accuracy = np.sum((gmap == generate_map)[gmap > 0]) / float(np.sum(gmap > 0))
         if verbose:
             if not latex_mode:
                 print("IOU for {}: {}\t{}: {}\t{}:{}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1],
@@ -157,7 +157,7 @@ class Test:
                 print("Overall Missing rate: {}".format(miss))
             else:
                 miss_percent = miss * 100
-                print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
+                # print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
         return iou_lists, miss
 
     def imshow(self, img1, img2):
