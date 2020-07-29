@@ -76,6 +76,12 @@ class Test:
         self.shift_w = shift_w
         self.shift_h = shift_h
         self.logger = logger
+    
+    def log(self, content):
+        if self.logger is None:
+            print(content)
+        else:
+            self.logger.log(content)
 
     def full_test(self, dir_path="./global_maps", visualize=False, latex_mode=False, verbose=False):
         """
@@ -86,14 +92,16 @@ class Test:
         file_lists = [x for x in file_lists if ".png" in x]
         path_lists = [os.path.join(dir_path, x) for x in file_lists]
         iou_array = []
+        acc_array = []
         miss_array = []
         for path in path_lists:
             print("You are testing\t" + path.split("/")[-1])
             _, generate_map = read_img(path, self.mask)
             gmap = self.ground_truth_mask[self.shift_w:generate_map.shape[0] + self.shift_w,
                    self.shift_h:generate_map.shape[1] + self.shift_h]
-            iou_lists, miss = self.iou(gmap, generate_map, latex_mode=latex_mode, verbose=verbose)
+            iou_lists, acc_lists, miss = self.iou(gmap, generate_map, latex_mode=latex_mode, verbose=verbose)
             iou_array.append(np.array(iou_lists).reshape(1, -1))
+            acc_array.append(np.array(acc_lists).reshape(1, -1))
             miss_array.append(miss)
             if visualize:
                 mask = np.zeros(generate_map.shape)
@@ -105,14 +113,18 @@ class Test:
         miss_percent = miss * 100
         iou_array = np.concatenate(iou_array, axis=0)
         iou_lists = np.mean(iou_array, axis=0)
-        print("Final Batch evaluation")
-        print("IOU for {}: {}\t{}: {}\t{}:{}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1], iou_lists[1],
+        acc_array = np.concatenate(acc_array, axis=0)
+        acc_lists = np.mean(acc_array, axis=0)
+        self.log("Final Batch evaluation")
+        self.log("IOU for {}: {}\t{}: {}\t{}:{}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1], iou_lists[1],
                                                                self.d[2], iou_lists[2],
                                                                np.mean(iou_lists)))
-        print("Overall Missing rate: {}".format(miss))
+        self.log("ACC for {}: {}\t{}: {}\t{}:{}\tmIOU: {}".format(self.d[0], acc_lists[0], self.d[1], acc_lists[1],
+                                                               self.d[2], acc_lists[2],
+                                                               np.mean(acc_lists)))
+        self.log("Overall Missing rate: {}".format(miss))
         if latex_mode:
-            pass
-            # print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
+            self.log("&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3g}\\\\ \\hline".format(iou_lists[0], iou_lists[1], iou_lists[2], np.mean(iou_lists), miss_percent))
 
     def test_single_map(self, global_map):
         """ Calculate and print the IoU, accuracy and missing rate
@@ -158,7 +170,7 @@ class Test:
             else:
                 miss_percent = miss * 100
                 # print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
-        return iou_lists, miss
+        return iou_lists, acc_lists, miss
 
     def imshow(self, img1, img2):
         fig, axes = plt.subplots(1, 2)
@@ -169,7 +181,7 @@ class Test:
 
 if __name__ == "__main__":
     visualize = False  # True if visualizing global maps and ground truth, default to no visualization
-    latex_mode = False # True if generate latex code of tabels
+    latex_mode = True # True if generate latex code of tabels
     verbose = True # True if print evaluation results for every image False if print final average result
     import sys
 
@@ -178,5 +190,8 @@ if __name__ == "__main__":
         if sys.argv[1] == '-v':
             visualize = True
 
+    # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/distance_new/version_3/"
+    dir_path = "./global_maps"
+    
     test = Test(ground_truth_dir="./ground_truth")
-    test.full_test(dir_path="./global_maps", visualize=visualize, latex_mode=latex_mode, verbose=verbose)
+    test.full_test(dir_path=dir_path, visualize=visualize, latex_mode=latex_mode, verbose=verbose)

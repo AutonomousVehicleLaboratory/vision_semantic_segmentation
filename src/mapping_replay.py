@@ -157,6 +157,10 @@ class SemanticMapping:
                         print("Hkl file loaded!")
                         self.mapping_replay(input_list, file_name[0:-4])
                         hkl_file_pointer.close()
+        
+        if self.ground_truth_dir != "":
+            test = Test(ground_truth_dir=self.ground_truth_dir, logger=self.logger)
+            test.full_test(dir_path=self.output_dir, latex_mode=True)
 
     def mapping_replay_file(self):
         """ Replay a single hkl file in the input_dir directory
