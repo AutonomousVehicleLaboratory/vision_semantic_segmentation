@@ -4,45 +4,63 @@ import os
 import matplotlib.pyplot as plt
 
 
-def read_img(global_map_path):
+def read_img(global_map_path, mask=None):
     gmap = cv2.imread(global_map_path)
-    # gmap = np.rot90(gmap, k=1, axes=(0, 1))
+    if mask is None:
+        mask = np.ones((gmap.shape[0], gmap.shape[1]))
+    else:
+        mask = mask[:gmap.shape[0],:gmap.shape[1]]
     global_map = np.zeros((gmap.shape[0], gmap.shape[1]))
-    global_map[np.all(gmap == np.array([128, 64, 128]), axis=-1)] = 1  # road
-    global_map[np.all(gmap == np.array([140, 140, 200]), axis=-1)] = 2  # crosswalk
-    global_map[np.all(gmap == np.array([244, 35, 232]), axis=-1)] = 3  # sidewalk
-    global_map[np.all(gmap == np.array([255, 255, 255]), axis=-1)] = 4  # lane
-    global_map[np.all(gmap == np.array([107, 142, 35]), axis=-1)] = 5  # vegetation
+    global_map[np.logical_and(np.all(gmap == np.array([128, 64, 128]), axis=-1), mask)] = 1  # road
+    global_map[np.logical_and(np.all(gmap == np.array([140, 140, 200]), axis=-1), mask)] = 2  # crosswalk
+    global_map[np.logical_and(np.all(gmap == np.array([255, 255, 255]), axis=-1), mask)] = 3  # lane
+    global_map[np.logical_and(np.all(gmap == np.array([244, 35, 232]), axis=-1), mask)] = 4  # sidewalk
+    global_map[np.logical_and(np.all(gmap == np.array([107, 142, 35]), axis=-1), mask)] = 5  # vegetation
     return gmap, global_map
 
 
 class Test:
-    def __init__(self, ground_truth_dir="./", preprocess=True):
+    def __init__(self, ground_truth_dir="./ground_truth", preprocess=True):
         """
             Load the ground truth map and do transformations for it. Preprocess and store it for faster testing.
             ground_truth_dir: dir path to ground truth map
             preprocess: reprocess the rgb ground truth map to interger label if true.
         """
         if preprocess:
-            crosswalks = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-crosswalks.jpg"))
+            crosswalks = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-crosswalk.jpg"))
             road = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-road.jpg"))
+            lane = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-lanes.jpg"))
+            mask = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-mask.jpg"))
+            # search if the lane marks have ground truth
             w, h = road.shape[:2]
+            # white color in mask corresponds to valid region
+            mask = cv2.resize(mask, (int(h / 4), int(w / 4)))
+            mask2 = np.zeros((int(w / 4), int(h / 4)))
+            mask2[np.all(mask == np.array([255, 255, 255]), axis=-1)] = 1
+            mask = mask2
+            self.mask = mask
+            # downsample the image
             crosswalks = cv2.resize(crosswalks, (int(h / 4), int(w / 4)))
             road = cv2.resize(road, (int(h / 4), int(w / 4)))
+            lane = cv2.resize(lane, (int(h / 4), int(w / 4)))
+            # only use the region within the mask
             self.ground_truth_mask = np.zeros((road.shape[0], road.shape[1]))
-            self.ground_truth_mask[np.any(road > 0, axis=-1)] = 1  # road
-            self.ground_truth_mask[np.any(crosswalks > 0, axis=-1)] = 2  # crosswalk
+            self.ground_truth_mask[np.logical_and(np.any(road > 0, axis=-1), mask)] = 1  # road
+            self.ground_truth_mask[np.logical_and(np.any(lane > 0, axis=-1), mask)] = 3  # lanes
+            self.ground_truth_mask[np.logical_and(np.any(crosswalks > 0, axis=-1), mask)] = 2  # crosswalk
             with open("truth.npy", 'wb') as f:
                 np.save(f, self.ground_truth_mask)
+            with open("mask.npy", 'wb') as f:
+                np.save(f, mask)
         else:
             with open("truth.npy", 'rb') as f:
                 self.ground_truth_mask = np.load(f)
-        # rotate the ground truth mask to align with the generated map
-        # self.ground_truth_mask = np.rot90(self.ground_truth_mask, k=1, axes=(0, 1))
-        self.d = {0: "road", 1: "crosswalk"}
-        self.class_lists = [1, 2]
+            with open("mask.npy", 'rb') as f:
+                self.mask = np.load(f)
+        self.d = {0: "road", 1: "crosswalk", 2: "lane"}
+        self.class_lists = [1, 2, 3]
 
-    def full_test(self, dir_path="./global_maps", visualize=False):
+    def full_test(self, dir_path="./global_maps", visualize=False, latex_mode=False, verbose=False):
         """
             test all the generated maps in dir_path folders
             dir_path: dir path to generated maps
@@ -52,21 +70,35 @@ class Test:
         file_lists = os.listdir(dir_path)
         file_lists = [x for x in file_lists if ".png" in x]
         path_lists = [os.path.join(dir_path, x) for x in file_lists]
+        iou_array = []
+        miss_array = []
         for path in path_lists:
-            print("You are testing " + path.split("/")[-1])
-            _, generate_map = read_img(path)
+            print("You are testing\t" + path.split("/")[-1])
+            _, generate_map = read_img(path, self.mask)
             gmap = self.ground_truth_mask[shift_w:generate_map.shape[0] + shift_w,
                    shift_h:generate_map.shape[1] + shift_h]
-            self.iou(gmap, generate_map)
+            iou_lists, miss = self.iou(gmap, generate_map, latex_mode=latex_mode, verbose=verbose)
+            iou_array.append(np.array(iou_lists).reshape(1, -1))
+            miss_array.append(miss)
             if visualize:
-                # pdb.set_trace()
                 mask = np.zeros(generate_map.shape)
                 for cls in self.class_lists:
                     mask = np.logical_or(mask, generate_map == cls)
                 generate_map[np.logical_not(mask)] = 0
                 self.imshow(gmap, generate_map)
+        miss = np.mean(miss_array)
+        miss_percent = miss * 100
+        iou_array = np.concatenate(iou_array, axis=0)
+        iou_lists = np.mean(iou_array, axis=0)
+        print("Final Batch evaluation")
+        print("IOU for {}: {}\t{}: {}\t{}:{}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1], iou_lists[1],
+                                                               self.d[2], iou_lists[2],
+                                                               np.mean(iou_lists)))
+        print("Overall Missing rate: {}".format(miss))
+        if latex_mode:
+            print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
 
-    def iou(self, gmap, generate_map):
+    def iou(self, gmap, generate_map, latex_mode=False, verbose=False):
         """
             calculate the iou, accuracy, missing rate
             gmap: ground truth map with interger labels
@@ -85,12 +117,22 @@ class Test:
             acc_lists.append(acc)
         miss = 1 - np.sum(np.logical_and((gmap > 0), (generate_map > 0))) / np.sum(gmap > 0)
         accuracy = np.sum((gmap == generate_map)[gmap > 0]) / np.sum(gmap > 0)
-
-        print("IOU for {}: {}\t{}: {}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1], iou_lists[1],
-                                                        np.mean(iou_lists)))
-        print("Accuracy for {}: {}\t{}: {}\tmean Accuracy: {}".format(self.d[0], acc_lists[0], self.d[1], acc_lists[1],
-                                                                      accuracy))
-        print("Overall Missing rate: {}".format(miss))
+        if verbose:
+            if not latex_mode:
+                print("IOU for {}: {}\t{}: {}\t{}:{}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1],
+                                                                       iou_lists[1],
+                                                                       self.d[2], iou_lists[2],
+                                                                       np.mean(iou_lists)))
+                print("Accuracy for {}: {}\t{}: {}\t{}:{}\tmean Accuracy: {}".format(self.d[0], acc_lists[0],
+                                                                                     self.d[1], acc_lists[1],
+                                                                                     self.d[2],
+                                                                                     acc_lists[2],
+                                                                                     accuracy))
+                print("Overall Missing rate: {}".format(miss))
+            else:
+                miss_percent = miss * 100
+                print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
+        return iou_lists, miss
 
     def imshow(self, img1, img2):
         fig, axes = plt.subplots(1, 2)
@@ -100,6 +142,9 @@ class Test:
 
 
 if __name__ == "__main__":
-    preprocess = False
-    test = Test(ground_truth_dir="./", preprocess=preprocess)
-    test.full_test(dir_path="./global_maps", visualize=True)
+    preprocess = False # True if regenerating the matrix for mask and ground truth. Those files will speed up testing.
+    latex_mode = False # True if generate latex code of tabels
+    visualize = True # True if visualizing global maps and ground truth
+    verbose = True # True if print evaluation results for every image False if print final average result
+    test = Test(ground_truth_dir="./ground_truth", preprocess=preprocess)
+    test.full_test(dir_path="./global_maps", visualize=visualize, latex_mode=latex_mode, verbose=verbose)
