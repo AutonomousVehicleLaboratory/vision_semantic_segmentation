@@ -3,9 +3,8 @@ import cv2
 import os
 import matplotlib.pyplot as plt
 
-
-def read_img(global_map_path, mask=None):
-    gmap = cv2.imread(global_map_path)
+def convert_labels(gmap, mask=None):
+    """ covert colors to labels """
     if mask is None:
         mask = np.ones((gmap.shape[0], gmap.shape[1]))
     else:
@@ -16,18 +15,34 @@ def read_img(global_map_path, mask=None):
     global_map[np.logical_and(np.all(gmap == np.array([255, 255, 255]), axis=-1), mask)] = 3  # lane
     global_map[np.logical_and(np.all(gmap == np.array([244, 35, 232]), axis=-1), mask)] = 4  # sidewalk
     global_map[np.logical_and(np.all(gmap == np.array([107, 142, 35]), axis=-1), mask)] = 5  # vegetation
+    return global_map
+
+
+def read_img(global_map_path, mask=None):
+    """ read the global map file and covert colors to labels """
+    gmap = cv2.imread(global_map_path)
+    # gmap = np.rot90(gmap, k=1, axes=(0, 1))
+    global_map = convert_labels(gmap, mask)
     return gmap, global_map
 
 
 class Test:
-    def __init__(self, ground_truth_dir="./ground_truth", preprocess=True):
+    def __init__(self, ground_truth_dir="./", shift_h=0, shift_w=0, logger=None):
         """
             Load the ground truth map and do transformations for it. Preprocess and store it for faster testing.
             ground_truth_dir: dir path to ground truth map
             preprocess: reprocess the rgb ground truth map to interger label if true.
         """
-        if preprocess:
-            crosswalks = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-crosswalk.jpg"))
+        truth_file_path = os.path.join(ground_truth_dir, "truth.npy")
+
+        if os.path.exists(truth_file_path):
+            print(truth_file_path, "exists, openning it.")
+            with open(truth_file_path, 'rb') as f:
+                self.ground_truth_mask = np.load(f)
+        else:
+            # preprocess to generate the file
+            print(truth_file_path, "does not exist, preprocess the ground truth to generate it.")
+            crosswalks = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-crosswalks.jpg"))
             road = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-road.jpg"))
             lane = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-lanes.jpg"))
             mask = cv2.imread(os.path.join(ground_truth_dir, "bev-5cm-mask.jpg"))
@@ -59,14 +74,15 @@ class Test:
                 self.mask = np.load(f)
         self.d = {0: "road", 1: "crosswalk", 2: "lane"}
         self.class_lists = [1, 2, 3]
+        self.shift_w = shift_w
+        self.shift_h = shift_h
+        self.logger = logger
 
     def full_test(self, dir_path="./global_maps", visualize=False, latex_mode=False, verbose=False):
         """
             test all the generated maps in dir_path folders
             dir_path: dir path to generated maps
         """
-        shift_w = 0  # 200
-        shift_h = 0  # 500
         file_lists = os.listdir(dir_path)
         file_lists = [x for x in file_lists if ".png" in x]
         path_lists = [os.path.join(dir_path, x) for x in file_lists]
@@ -75,8 +91,8 @@ class Test:
         for path in path_lists:
             print("You are testing\t" + path.split("/")[-1])
             _, generate_map = read_img(path, self.mask)
-            gmap = self.ground_truth_mask[shift_w:generate_map.shape[0] + shift_w,
-                   shift_h:generate_map.shape[1] + shift_h]
+            gmap = self.ground_truth_mask[self.shift_w:generate_map.shape[0] + self.shift_w,
+                   self.shift_h:generate_map.shape[1] + self.shift_h]
             iou_lists, miss = self.iou(gmap, generate_map, latex_mode=latex_mode, verbose=verbose)
             iou_array.append(np.array(iou_lists).reshape(1, -1))
             miss_array.append(miss)
@@ -98,9 +114,19 @@ class Test:
         if latex_mode:
             print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
 
+    def test_single_map(self, global_map):
+        """ Calculate and print the IoU, accuracy and missing rate
+            of the global_map and ground truth. 
+            global_map: the semantic global map
+        """
+        generate_map = convert_labels(global_map)
+        gmap = self.ground_truth_mask[self.shift_w:generate_map.shape[0] + self.shift_w,
+               self.shift_h:generate_map.shape[1] + self.shift_h]
+        self.iou(gmap, generate_map, verbose=True)
+
     def iou(self, gmap, generate_map, latex_mode=False, verbose=False):
         """
-            calculate the iou, accuracy, missing rate
+            Calculate and print the IoU, accuracy, missing rate
             gmap: ground truth map with interger labels
             generate_map: generated map with interger labels
         """
@@ -109,8 +135,8 @@ class Test:
         for cls in self.class_lists:
             gmap_layer = gmap == cls
             map_layer = generate_map == cls
-            intersection = np.sum(gmap_layer * map_layer)
-            union = np.sum(gmap_layer) + np.sum(map_layer) - intersection
+            intersection = float(np.sum(gmap_layer * map_layer))
+            union = float(np.sum(gmap_layer) + np.sum(map_layer) - intersection)
             iou = intersection / union
             iou_lists.append(iou)
             acc = intersection / np.sum(gmap_layer)
@@ -142,9 +168,15 @@ class Test:
 
 
 if __name__ == "__main__":
-    preprocess = False # True if regenerating the matrix for mask and ground truth. Those files will speed up testing.
+    visualize = False  # True if visualizing global maps and ground truth, default to no visualization
     latex_mode = False # True if generate latex code of tabels
-    visualize = True # True if visualizing global maps and ground truth
     verbose = True # True if print evaluation results for every image False if print final average result
-    test = Test(ground_truth_dir="./ground_truth", preprocess=preprocess)
+    import sys
+
+    # add arguement -v for visualization
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '-v':
+            visualize = True
+
+    test = Test(ground_truth_dir="./ground_truth")
     test.full_test(dir_path="./global_maps", visualize=visualize, latex_mode=latex_mode, verbose=verbose)

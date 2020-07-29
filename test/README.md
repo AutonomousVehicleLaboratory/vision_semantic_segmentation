@@ -5,6 +5,7 @@
 
 ## Setup
 
+
 Please put the generated maps that you want to test in the `./global_maps` directory. 
 Please put ground truth maps  (`bev-5cm-crosswalks.jpg`, `bev-5cm-road.jpg`. etc.) in `./ground_truth` directory. 
 
@@ -51,7 +52,7 @@ The file tree should look like this:
   To verify if the maps align, users can visalize two maps. Please pass `visualize=True` to `test.full_test` method. It will plot the ground truth map (left) and generated maps (right) with the same kinds of labels.
 
   ```bash
-  python3 test_semantic_mapping.py
+  python3 test_semantic_mapping.py -v
   ```
 
   

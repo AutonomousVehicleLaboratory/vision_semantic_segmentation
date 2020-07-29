@@ -37,6 +37,12 @@ _C.OUTPUT_DIR = "@/outputs"
 # 20 seconds.
 _C.TEST_END_TIME = 1581541450
 
+# Ground truth semantic map label directory
+_C.GROUND_TRUTH_DIR = ""
+
+# Set the random seed of the network for reproducibility
+_C.RNG_SEED = -1
+
 # The associate index of each label in the semantic segmentation network
 _C.LABELS = [2, 1, 8, 10, 3]
 # The name of the label
@@ -68,10 +74,13 @@ _C.MAPPING.DEPTH_METHOD = 'points_map'
 _C.MAPPING.PCD = CN()
 # If True, use the point cloud intensity data to augment our semantic BEV estimation
 _C.MAPPING.PCD.USE_INTENSITY = True
+_C.MAPPING.PCD.RANGE_MAX = 100.0
 
 _C.MAPPING.CONFUSION_MTX = CN()
 # The load path of the confusion matrix
-_C.MAPPING.CONFUSION_MTX.LOAD_PATH = "/home/users/qinru/codebase/ros_workspace/src/vision_semantic_segmentation/external_data/confusion_matrix/run_trad_cnn/cfn_mtx.npy"
+_C.MAPPING.CONFUSION_MTX.LOAD_PATH = ""
+# The store and load path of deterministic input to the mapping process
+_C.MAPPING.INPUT_DIR = ""
 
 # --------------------------------------------------------------------------- #
 # Vision Semantic Segmentation Configuration

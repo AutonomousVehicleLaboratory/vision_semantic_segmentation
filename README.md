@@ -187,45 +187,13 @@ MAPPING:
 
 Then pass these configuration into the roslaunch as shown in Step 4 and click the `Play ` in the Autoware, now you should be good to go!
 
-## ROS Node Information 
+## Reproducibility
 
-`vision_semantic_segmentation_node.py`  is 
+To reproduce our result, you need to 
 
-Subscribing
-
-```
-type: sensor_msgs.msg Image \
-topic: /camera{id}/image_raw
-```
-
-Publishing
-
-```
-type: sensor_msgs.msg Image \
-topic: /camera{id}/semantic
-```
-
-`mapping.py` is 
-
-Subscribing
-
-```
-type: sensor_msgs.msg Image \
-topic: /camera{id}/semantic
-
-type: 
-topic: /reduced_map
-
-type: 
-topic: /points_raw
-```
-
-Publishing
-
-```
-topic: /semantic_local_map
-topic: /semantic_point_cloud
-```
+1. Slow down the replay speed of the rosbag. As the image node will drop package if it is legging behind, the drop of package is uncontrollable and can happen at anytime. Therefore we need to slow down the replay speed to ensure that all the packages are processed. We recommend using `0.1` replay rate. 
+2. Set the input image scale to 1.0. The nearest neighbor interpolation from the `cv2` may cause some misalignments and we want to disable that. 
+3. Fix the random seed. Set the `RNG_SEED` value in the configuration file to a non zero value so that we can disable any randomness. 
 
 ## Credits
 

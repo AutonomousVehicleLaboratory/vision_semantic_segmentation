@@ -1,3 +1,9 @@
+TASK_NAME: "map_gen"
+TEST_END_TIME: 1581541450
+MAPPING:
+  BOUNDARY: [[0, 600], [0, 1400]]
+  RESOLUTION: 0.2
+GROUND_TRUTH_DIR: "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/test/ground_truth/"
 VISION_SEM_SEG:
   IMAGE_SCALE: 0.5
   SEM_SEG_NETWORK:
