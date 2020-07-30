@@ -1,4 +1,4 @@
-TASK_NAME: "batch_test"
+TASK_NAME: "intensity_new"
 RNG_SEED: -1
 TEST_END_TIME: 1581541450
 # TEST_END_TIME: 1581541270
@@ -9,11 +9,14 @@ MAPPING:
   RESOLUTION: 0.2
   PCD:
     USE_INTENSITY: True
-    RANGE_MAX: 60.0
+    RANGE_MAX: 15.0
   CONFUSION_MTX:
-    LOAD_PATH: "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/external_data/confusion_matrix/run_trad_cnn/cfn_mtx.npy"
-  INPUT_DIR: "/media/henry/Work/UCSD/0_Research/avl/testing/data_file/"
-  DEPTH_METHOD: "points_map"
+    LOAD_PATH: ""
+    # LOAD_PATH: "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/external_data/confusion_matrix/run_trad_cnn/cfn_mtx.npy"
+  # INPUT_DIR: "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/external_data/replay_data/"
+  # INPUT_DIR: "/media/henry/Work/UCSD/0_Research/avl/testing/data_file/"
+  INPUT_DIR: "/media/henry/a9424222-cf63-4d81-9a69-b7ba7d8ca940/home/henry/Documents/avl/data_file/"
+  DEPTH_METHOD: "points"
 VISION_SEM_SEG:
   IMAGE_SCALE: 0.5
   SEM_SEG_NETWORK:
