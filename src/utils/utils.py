@@ -258,11 +258,23 @@ def test_queue():
     print(q.get())
 
 
+def test_crop():
+    img_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/distance_new/version_3/global_map_input_list_0.png"
+    img_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/points_raw/version_1/global_map.png"
+    img = cv2.imread(img_path)
+    clipped_img = np.flip(img[805:885, 5350:5700], axis=1)
+    clipped_img = np.flip(clipped_img, axis=0)
+    plt.figure()
+    plt.imshow(clipped_img)
+    plt.show()
+    cv2.imwrite("/home/henry/Pictures/global_map_real_time_scan_clipped.png", clipped_img)
+
 # main
 def main():
     pass
     # test_arg_max()
     # test_queue()
+    test_crop()
 
 
 if __name__ == "__main__":
