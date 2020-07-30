@@ -109,6 +109,7 @@ class Test:
                     mask = np.logical_or(mask, generate_map == cls)
                 generate_map[np.logical_not(mask)] = 0
                 self.imshow(gmap, generate_map)
+                self.disparity(gmap, generate_map)
         miss = np.mean(miss_array)
         miss_percent = miss * 100
         iou_array = np.concatenate(iou_array, axis=0)
@@ -124,7 +125,8 @@ class Test:
                                                                np.mean(acc_lists)))
         self.log("Overall Missing rate: {}".format(miss))
         if latex_mode:
-            self.log("&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3g}\\\\ \\hline".format(iou_lists[0], iou_lists[1], iou_lists[2], np.mean(iou_lists), miss_percent))
+            self.log("&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3g}\\\\ \\hline".format(iou_lists[0], iou_lists[1], iou_lists[2], np.mean(iou_lists),
+            acc_lists[0], acc_lists[1], acc_lists[2], np.mean(acc_lists), miss_percent))
 
     def test_single_map(self, global_map):
         """ Calculate and print the IoU, accuracy and missing rate
@@ -172,6 +174,25 @@ class Test:
                 # print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
         return iou_lists, acc_lists, miss
 
+    def disparity(self, gmap, generate_map):
+        """ generate disparity map for the specified channels """
+        for i in [1,2,3]:
+            bg = np.zeros((gmap.shape[0], gmap.shape[1], 3))
+            
+            gmap_masked = gmap == i
+            generate_map_masked = generate_map == i
+            tt = np.logical_and(gmap_masked, generate_map_masked)
+            fp = np.logical_and(np.logical_not(gmap_masked), generate_map_masked)
+            fn = np.logical_and(gmap_masked, np.logical_not(generate_map_masked))
+
+            bg[tt] = np.array([0, 255, 0])
+            bg[fp] = np.array([255, 0, 0])
+            bg[fn] = np.array([0, 0, 255])
+
+            plt.figure()
+            plt.imshow(bg[500::, 4000::])# [805:885, 5350:5700])
+            plt.show()
+    
     def imshow(self, img1, img2):
         fig, axes = plt.subplots(1, 2)
         axes[0].matshow(img1)
@@ -180,7 +201,7 @@ class Test:
 
 
 if __name__ == "__main__":
-    visualize = False  # True if visualizing global maps and ground truth, default to no visualization
+    visualize = True # True if visualizing global maps and ground truth, default to no visualization
     latex_mode = True # True if generate latex code of tabels
     verbose = True # True if print evaluation results for every image False if print final average result
     import sys
@@ -191,6 +212,8 @@ if __name__ == "__main__":
             visualize = True
 
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/distance_new/version_3/"
+    # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/without_filter/version_2/"
+    # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/points_raw/version_1/"
     dir_path = "./global_maps"
     
     test = Test(ground_truth_dir="./ground_truth")
