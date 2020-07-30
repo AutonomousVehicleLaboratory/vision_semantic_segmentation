@@ -321,9 +321,9 @@ class SemanticMapping:
             self.map = self.update_map_planar(self.map, semantic_image, camera_calibration)
 
         if self.save_map_to_file:
-            with open(os.path.join(self.input_dir, "input_list.hkl"), 'wb') as fp:
-                print("writing input_list ...")
-                hickle.dump(self.input_list, fp, mode='w')    
+            # with open(os.path.join(self.input_dir, "input_list.hkl"), 'wb') as fp:
+            #     print("writing input_list ...")
+            #     hickle.dump(self.input_list, fp, mode='w')    
                         
             output_dir = self.output_dir
             makedirs(output_dir, exist_ok=True)
@@ -446,28 +446,35 @@ class SemanticMapping:
     def update_map_planar(self, map_local, image, cam):
         """ Project the semantic image onto the map plane and update it """
 
-        points_map = homogenize(np.array(self.anchor_points_2))
-        points_local = np.matmul(self.discretize_matrix_inv, points_map)
-        points_local[2, :] = 0
-        points_local = homogenize(points_local)
+        # points_map = homogenize(np.array(self.anchor_points_2))
+        # points_local = np.matmul(self.discretize_matrix_inv, points_map)
+        # points_local[2, :] = 0
+        # points_local = homogenize(points_local)
 
-        T_local_to_base, _, _, _ = get_transformation(frame_from='/local_map', time_from=rospy.Time(0),
+        T_local_to_base, _, _, _ = get_transformation(frame_from='/global_map', time_from=rospy.Time(0),
                                                       frame_to='/base_link', time_to=self.pose_time,
                                                       static_frame='world',
                                                       tf_listener=self.tf_listener, tf_ros=self.tf_ros)
         T_base_to_velodyne = np.linalg.inv(self.T_velodyne_to_basklink)
         T_local_to_velodyne = np.matmul(T_base_to_velodyne, T_local_to_base)
 
+        points_base_link = np.array([[30, 10, 10, 30],
+                                    [0, 2, 5, 15],
+                                    [0, 0, 0, 0]], dtype=np.float)
+        points_global = np.matmul(np.linalg.inv(T_local_to_base), homogenize(points_base_link))
+        anchor_points_global = ((points_global[0:2, :] - np.array([[self.map_boundary[0][0]], [self.map_boundary[1][0]]]))
+                     / self.resolution).astype(np.int32)
+
         # compute new points
-        points_velodyne = np.matmul(T_local_to_velodyne, points_local)
-        points_image = dehomogenize(np.matmul(cam.P, points_velodyne))
+        points_velodyne = np.matmul(T_local_to_velodyne, points_global)
+        points_image = dehomogenize(np.matmul(cam.P, points_velodyne)).astype(np.int)
 
         # generate homography
-        image_on_map = generate_homography(image, points_image.T, self.anchor_points_2.T, vis=False,
-                                           out_size=[self.map_width, self.map_height])
+        image_on_map = generate_homography(image, points_image.T, anchor_points_global.T, vis=True,
+                                           out_size=[self.map_height, self.map_width])
         sep = int((8 - self.map_boundary[0][0]) / self.resolution)
         mask = np.ones(map_local.shape[0:2])
-        mask[:, 0:sep] = 0
+        # mask[:, 0:sep] = 0
         idx_mask_3 = np.zeros([map_local.shape[0], map_local.shape[1], 3])
 
         for i in range(len(self.label_names)):
