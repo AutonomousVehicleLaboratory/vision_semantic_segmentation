@@ -54,7 +54,8 @@ class Test:
             # white color in mask corresponds to valid region
             mask = cv2.resize(mask, (int(h / 4), int(w / 4)))
             mask2 = np.zeros((int(w / 4), int(h / 4)))
-            mask2[np.all(mask == np.array([255, 255, 255]), axis=-1)] = 1
+            # mask2[np.all(mask == np.array([255, 255, 255]), axis=-1)] = 1
+            mask2[np.all(mask>255/2, axis=-1)] = 1 
             mask = mask2
             self.mask = mask
             # downsample the image
@@ -159,16 +160,16 @@ class Test:
         accuracy = np.sum((gmap == generate_map)[gmap > 0]) / float(np.sum(gmap > 0))
         if verbose:
             if not latex_mode:
-                print("IOU for {}: {}\t{}: {}\t{}:{}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1],
+                self.log("IOU for {}: {}\t{}: {}\t{}:{}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1],
                                                                        iou_lists[1],
                                                                        self.d[2], iou_lists[2],
                                                                        np.mean(iou_lists)))
-                print("Accuracy for {}: {}\t{}: {}\t{}:{}\tmean Accuracy: {}".format(self.d[0], acc_lists[0],
+                self.log("Accuracy for {}: {}\t{}: {}\t{}:{}\tmean Accuracy: {}".format(self.d[0], acc_lists[0],
                                                                                      self.d[1], acc_lists[1],
                                                                                      self.d[2],
                                                                                      acc_lists[2],
                                                                                      accuracy))
-                print("Overall Missing rate: {}".format(miss))
+                self.log("Overall Missing rate: {}".format(miss))
             else:
                 miss_percent = miss * 100
                 # print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
@@ -192,6 +193,11 @@ class Test:
             plt.figure()
             plt.imshow(bg[500::, 4000::])# [805:885, 5350:5700])
             plt.show()
+
+            # img_name = "/home/henry/Pictures/disparity_map_vanilla_i_label_{}.png".format(i)
+            # cv2.imwrite(img_name , cv2.cvtColor(bg[500::, 4000::].astype(np.uint8), cv2.COLOR_RGB2BGR))
+        
+        exit(0)
     
     def imshow(self, img1, img2):
         fig, axes = plt.subplots(1, 2)
@@ -200,7 +206,7 @@ class Test:
         plt.show()
 
 
-if __name__ == "__main__":
+def main():
     visualize = True # True if visualizing global maps and ground truth, default to no visualization
     latex_mode = True # True if generate latex code of tabels
     verbose = True # True if print evaluation results for every image False if print final average result
@@ -214,7 +220,38 @@ if __name__ == "__main__":
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/distance_new/version_3/"
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/without_filter/version_2/"
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/points_raw/version_1/"
-    dir_path = "./global_maps"
+    dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/alignment/version_10/"
+    # dir_path = "./global_maps"
     
     test = Test(ground_truth_dir="./ground_truth")
     test.full_test(dir_path=dir_path, visualize=visualize, latex_mode=latex_mode, verbose=verbose)
+
+
+def disparity_of_disparity():
+    for i in [1,2,3]:
+        vanilla_name = "/home/henry/Pictures/IROS/disparity_map_vanilla_i_label_{}.png".format(i)
+        cfn_name = "/home/henry/Pictures/IROS/disparity_map_cfn_i_label_{}.png".format(i)
+
+        vanilla_img = cv2.cvtColor( cv2.imread(vanilla_name), cv2.COLOR_BGR2RGB)
+        cfn_img = cv2.cvtColor( cv2.imread(cfn_name), cv2.COLOR_BGR2RGB)
+
+        for j in [0, 1, 2]:
+            bg = np.zeros((vanilla_img.shape[0], vanilla_img.shape[1], 3))
+            bg_layer = bg[:,:,j]
+            mask_j = vanilla_img[:,:,j] != cfn_img[:,:,j]
+            bg_layer[mask_j] = 255
+            
+            img_name = "/home/henry/Pictures/IROS/disparity_of_disparity_map_{}_{}.png".format(i, j)
+            cv2.imwrite(img_name , cv2.cvtColor(bg.astype(np.uint8), cv2.COLOR_RGB2BGR))
+
+        # plt.figure()
+        # plt.imshow(bg)# [805:885, 5350:5700])
+        # plt.show()
+
+        
+        
+
+if __name__ == "__main__":
+    main()
+    # disparity_of_disparity()
+    
