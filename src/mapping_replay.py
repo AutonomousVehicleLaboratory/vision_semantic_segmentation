@@ -113,6 +113,7 @@ class SemanticMapping:
 
         self.ground_truth_dir = cfg.GROUND_TRUTH_DIR
         self.input_dir = cfg.MAPPING.INPUT_DIR
+        self.round_close = cfg.MAPPING.ROUND_CLOSE
 
     def preprocessing(self):
         """ Setup constant matrices """
@@ -233,7 +234,10 @@ class SemanticMapping:
         else:
             pcd_velodyne = homogenize(pcd[0:3, :])
 
-        IXY = dehomogenize(np.matmul(camera_calibration.P, pcd_velodyne)).astype(np.int32)
+        if self.round_close == True:
+            IXY = np.around( dehomogenize(np.matmul(camera_calibration.P, pcd_velodyne))).astype(np.int32)
+        else:
+            IXY = dehomogenize(np.matmul(camera_calibration.P, pcd_velodyne)).astype(np.int32)
 
         # Only use the points in the front.
         mask_positive = np.logical_and(0 < pcd_velodyne[0, :], pcd_velodyne[0, :] < self.pcd_range_max)
@@ -266,8 +270,12 @@ class SemanticMapping:
         pcd_local = pcd[0:3] + pcd_origin_offset
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
         # Discretize point cloud into grid, Note that here we are basically doing the nearest neighbor search
-        pcd_pixel = ((pcd_on_map[0:2, :] - np.array([[self.map_boundary[0][0]], [self.map_boundary[1][0]]]))
-                     / self.resolution).astype(np.int32)
+        if self.round_close == True:
+            pcd_pixel = np.around((pcd_on_map[0:2, :] - np.array([[self.map_boundary[0][0]], [self.map_boundary[1][0]]]))
+                         / self.resolution).astype(np.int32)
+        else:
+            pcd_pixel = ((pcd_on_map[0:2, :] - np.array([[self.map_boundary[0][0]], [self.map_boundary[1][0]]]))
+                         / self.resolution).astype(np.int32)
         on_grid_mask = np.logical_and(np.logical_and(0 <= pcd_pixel[0, :], pcd_pixel[0, :] < self.map_height),
                                       np.logical_and(0 <= pcd_pixel[1, :], pcd_pixel[1, :] < self.map_width))
 

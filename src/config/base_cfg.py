@@ -81,6 +81,8 @@ _C.MAPPING.CONFUSION_MTX = CN()
 _C.MAPPING.CONFUSION_MTX.LOAD_PATH = ""
 # The store and load path of deterministic input to the mapping process
 _C.MAPPING.INPUT_DIR = ""
+# If round to close or round down
+_C.MAPPING.ROUND_CLOSE = True
 
 # --------------------------------------------------------------------------- #
 # Vision Semantic Segmentation Configuration
