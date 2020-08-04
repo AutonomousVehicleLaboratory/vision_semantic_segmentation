@@ -68,7 +68,8 @@ def fill_black(img):
     xmax, ymax = img.shape[0], img.shape[1]
 
     # constructing 3*3 area for faster option
-    img_stacked = np.vstack([img[1:xmax - 1, 1:ymax - 1, 0].reshape([-1, xmax - 2, ymax - 2]),
+    img_stacked = np.zeros(img.shape)
+    img_stacked[1:-1, 1:-1] = np.vstack([img[1:xmax - 1, 1:ymax - 1, 0].reshape([-1, xmax - 2, ymax - 2]),
                              img[0:xmax - 2, 1:ymax - 1, 0].reshape([-1, xmax - 2, ymax - 2]),
                              img[2:xmax, 1:ymax - 1, 0].reshape([-1, xmax - 2, ymax - 2]),
                              img[1:xmax - 1, 0:ymax - 2, 0].reshape([-1, xmax - 2, ymax - 2]),
@@ -82,17 +83,17 @@ def fill_black(img):
     for i in range(len(label_colors)):
         mask_dict[i] = np.any(img_stacked == label_colors[i, 0], axis=0)
 
-    img_out = np.zeros((xmax - 2, ymax - 2), dtype=np.uint8)
+    img_out = np.zeros((xmax, ymax), dtype=np.uint8)
 
     # get colors
     for label in priority_list:
         img_out[mask_dict[label]] = label_colors[label, 0]
 
-    # img_out[img[1:xmax-1,1:ymax-1, 0]!=0] = img[1:xmax-1, 1:ymax-1, 0][img[1:xmax-1,1:ymax-1, 0]!=0]
+    # img_out[img[:,:, 0]!=0] = img[:,:, 0][img[:,:, 0]!=0]
     # expand to three channels
-    img_out = np.concatenate([img_out.reshape([xmax - 2, ymax - 2, 1]),
-                              img_out.reshape([xmax - 2, ymax - 2, 1]),
-                              img_out.reshape([xmax - 2, ymax - 2, 1])], axis=2)
+    img_out = np.concatenate([img_out.reshape([xmax, ymax, 1]),
+                              img_out.reshape([xmax, ymax, 1]),
+                              img_out.reshape([xmax, ymax, 1])], axis=2)
     img_out = resume_color(img_out)
 
     return img_out
