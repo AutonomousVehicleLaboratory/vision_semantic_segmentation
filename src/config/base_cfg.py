@@ -35,7 +35,12 @@ _C.OUTPUT_DIR = "@/outputs"
 # If the time stamp reaches this threshold, we will stop generating the map.
 # Usually, our start time frame is 390. If you want a shorter test time, you can set it to 1581541270, which is about
 # 20 seconds.
-_C.TEST_END_TIME = 1581541450
+#_C.TEST_END_TIME = 1604445190 
+#_C.TEST_END_TIME = 1604445200 
+_C.TEST_END_TIME = 1604445459 
+#_C.TEST_END_TIME = 1581541450
+#_C.TEST_END_TIME = 1581541631
+#_C.TEST_END_TIME = 1602190420
 
 # Ground truth semantic map label directory
 _C.GROUND_TRUTH_DIR = ""
@@ -62,9 +67,25 @@ _C.LABEL_COLORS = [
 _C.MAPPING = CN()
 
 # The resolution of the occupancy grid in meters
-_C.MAPPING.RESOLUTION = 0.1
+_C.MAPPING.RESOLUTION = 0.2
 # The boundary of the occupancy grid, in meters. The format of the boundary is [[xmin, xmax], [ymin, ymax]]
-_C.MAPPING.BOUNDARY = [[100, 300], [800, 1000]]
+# _C.MAPPING.BOUNDARY = [[100, 300], [800, 1000]]
+#_C.MAPPING.BOUNDARY = [[0, 1000], [0, 1400]]
+# mail-route map
+#_C.MAPPING.BOUNDARY = [[-1369, 149], [-563, 874]]
+# summer2020-map1
+_C.MAPPING.BOUNDARY = [[-637.05267334, 837.194641113], [-1365.04785156, 117.317863464]]
+# summer2020-map2
+#_C.MAPPING.BOUNDARY = [[-267.616485596, 242.025421143], [-696.055175781, 126.109397888]]
+# summer2020-map3
+#_C.MAPPING.BOUNDARY = [[-118.229263306, 680.575927734], [-81.1667251587, 392.865081787]]
+#_C.MAPPING.BOUNDARY = [[-119, 681], [-82, 393]]
+
+# Extend previous map (raw map in .npy format)
+#_C.MAPPING.PREV_MAP = ""
+_C.MAPPING.PREV_MAP = "/home/dfpazr/Documents/CogRob/avl/TritonNet/iros_psm_ws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_23/raw_map.npy"
+
+#_C.MAPPING.BOUNDARY = [[0, 1400], [0, 1400]]
 # This variable defines the way how we estimate the depth from the image. If use "points_map", then we are using the
 # offline point cloud map. If use the points_raw", then we are using the the online point cloud map, i.e. the output
 # from the LiDAR per frame.
@@ -74,11 +95,11 @@ _C.MAPPING.DEPTH_METHOD = 'points_map'
 _C.MAPPING.PCD = CN()
 # If True, use the point cloud intensity data to augment our semantic BEV estimation
 _C.MAPPING.PCD.USE_INTENSITY = True
-_C.MAPPING.PCD.RANGE_MAX = 100.0
+_C.MAPPING.PCD.RANGE_MAX = 15.0
 
 _C.MAPPING.CONFUSION_MTX = CN()
 # The load path of the confusion matrix
-_C.MAPPING.CONFUSION_MTX.LOAD_PATH = ""
+_C.MAPPING.CONFUSION_MTX.LOAD_PATH = "/home/dfpazr/Documents/CogRob/avl/TritonNet/data/cfn_mtx.npy"
 # The store and load path of deterministic input to the mapping process
 _C.MAPPING.INPUT_DIR = ""
 # If round to close or round down
@@ -96,11 +117,11 @@ _C.VISION_SEM_SEG.IMAGE_SCALE = 1.0
 # Semantic Segmentation Network Configuration
 # --------------------------------------------------------------------------- #
 network_cfg.TRAIN_DATASET = "Mapillary"
-network_cfg.DATASET_CONFIG = "/mnt/avl_shared/qinru/iros2020/resnext50_os8/config.json"
+network_cfg.DATASET_CONFIG = "/home/dfpazr/Documents/CogRob/avl/TritonNet/data/config.json"
 
 network_cfg.MODEL.TYPE = "DeepLabv3+"
 # Path to Pre-trained or checkpointed weights
-network_cfg.MODEL.WEIGHT = "/mnt/avl_shared/qinru/iros2020/resnext50_os8/run1/model_best.pth"
+network_cfg.MODEL.WEIGHT = "/home/dfpazr/Documents/CogRob/avl/TritonNet/data/model_best.pth"
 # When set to True, the model will use synchronized batch normalization
 network_cfg.MODEL.SYNC_BN = False
 network_cfg.MODEL.DECODER.LOW_LEVEL_OUT_CHANNELS = 256

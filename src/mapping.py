@@ -108,12 +108,21 @@ class SemanticMapping:
         self.map_pose = None
         self.save_map_to_file = False
         self.map_boundary = cfg.MAPPING.BOUNDARY
+        self.prev_map = cfg.MAPPING.PREV_MAP
+        
+        if(self.prev_map != ""):
+            print("------------------------------------------------")
+            print("Restoring map: " + str(self.prev_map))
+            self.map = np.load(self.prev_map)
+            print("------------------------------------------------")
         self.resolution = cfg.MAPPING.RESOLUTION
         self.label_names = cfg.LABELS_NAMES
         self.label_colors = np.array(cfg.LABEL_COLORS)
 
-        self.map_height = int((self.map_boundary[0][1] - self.map_boundary[0][0]) / self.resolution)
-        self.map_width = int((self.map_boundary[1][1] - self.map_boundary[1][0]) / self.resolution)
+        #self.map_height = int((self.map_boundary[0][1] - self.map_boundary[0][0]) / self.resolution)
+        #self.map_width = int((self.map_boundary[1][1] - self.map_boundary[1][0]) / self.resolution)
+        self.map_height = int(abs(self.map_boundary[0][1] - self.map_boundary[0][0]) / self.resolution)
+        self.map_width = int(abs(self.map_boundary[1][1] - self.map_boundary[1][0]) / self.resolution)
         self.map_depth = len(self.label_names)
 
         self.position_rel = np.array([[0, 0, 0]]).T
@@ -164,7 +173,8 @@ class SemanticMapping:
 
     def set_velodyne_to_baselink(self):
         rospy.logwarn("velodyne to baselink from TF is tunned, current version fits best.")
-        T = euler_matrix(0., 0.140, 0.)
+        #T = euler_matrix(0., 0.140, 0.)
+        T = euler_matrix(0., 0.10, 0.)
         t = np.array([[2.64, 0, 1.98]]).T
         T[0:3, -1::] = t
         return T
@@ -229,8 +239,12 @@ class SemanticMapping:
         """ global map origin is shifted to the min x, y point in the point map
         so that the entire map will have positive values """
         pose = Pose()
-        pose.position.x = -1369.0496826171875  # min x
-        pose.position.y = -562.84814453125  # min y
+        #pose.position.x = 1369.0496826171875  # min x
+        #pose.position.y = 562.84814453125  # min y
+        pose.position.x = abs(self.map_boundary[0][0])  # min x
+        pose.position.y = abs(self.map_boundary[1][0])  # min y
+        #pose.position.x = 118.229263306  # min x
+        #pose.position.y = 81.1667251587  # min y
         pose.position.z = 0.0
         pose.orientation.w = 1.0
         set_map_pose(pose, '/world', 'global_map')
@@ -319,7 +333,6 @@ class SemanticMapping:
             self.map = self.update_map(self.map, pcd_in_range, pcd_label)
         else:
             self.map = self.update_map_planar(self.map, semantic_image, camera_calibration)
-
         if self.save_map_to_file:
             # with open(os.path.join(self.input_dir, "input_list.hkl"), 'wb') as fp:
             #     print("writing input_list ...")
@@ -329,14 +342,15 @@ class SemanticMapping:
             makedirs(output_dir, exist_ok=True)
             # np.save(osp.join(output_dir, "map.npy"), self.map)
 
-            self.map = apply_filter(self.map)  # smooth the labels to fill black holes
+            np.save(osp.join(output_dir, "raw_map.npy"), self.map)
 
+            self.map = apply_filter(self.map)  # smooth the labels to fill black holes
             color_map = render_bev_map(self.map, self.label_colors)
             # color_map = render_bev_map_with_thresholds(self.map, self.label_colors, priority=[3, 4, 0, 2, 1],
             #                                            thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
 
             output_file = osp.join(output_dir, "global_map.png")
-            print("Saving image to", output_file)
+            print("Saving image to: ", output_file)
             cv2.imwrite(output_file, color_map)
 
             # evaluate
@@ -401,12 +415,14 @@ class SemanticMapping:
             Updated map
         """
         normal = np.array([[0.0, 0.0, 1.0]]).T  # The normal of the z axis
-        pcd_origin_offset = np.array([[1369.0496826171875], [562.84814453125], [0.0]]) # pcd origin with respect to map origin
+        #pcd_origin_offset = np.array([[1369.0496826171875], [562.84814453125], [0.0]]) # pcd origin with respect to map origin
+        pcd_origin_offset = np.array([[abs(self.map_boundary[0][0])], [abs(self.map_boundary[1][0])], [0.0]]) # pcd origin with respect to map origin
         pcd_local = pcd[0:3] + pcd_origin_offset
         pcd_on_map = pcd_local - np.matmul(normal, np.matmul(normal.T, pcd_local))
         # Discretize point cloud into grid, Note that here we are basically doing the nearest neighbor search
-        pcd_pixel = ((pcd_on_map[0:2, :] - np.array([[self.map_boundary[0][0]], [self.map_boundary[1][0]]]))
-                     / self.resolution).astype(np.int32)
+        #pcd_pixel = ((pcd_on_map[0:2, :] - np.array([[self.map_boundary[0][0]], [self.map_boundary[1][0]]]))
+        #             / self.resolution).astype(np.int32)
+        pcd_pixel = (pcd_on_map[0:2, :] / self.resolution).astype(np.int32)
         on_grid_mask = np.logical_and(np.logical_and(0 <= pcd_pixel[0, :], pcd_pixel[0, :] < self.map_height),
                                       np.logical_and(0 <= pcd_pixel[1, :], pcd_pixel[1, :] < self.map_width))
 
