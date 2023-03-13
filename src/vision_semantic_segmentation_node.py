@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """ Semantic Segmentation Ros Wrapper
 
 Author: Hengyuan Zhang
