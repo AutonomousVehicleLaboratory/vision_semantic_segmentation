@@ -29,7 +29,7 @@ from shape_msgs.msg import Plane
 from visualization_msgs.msg import Marker, MarkerArray
 
 from src.camera import camera_setup_6, camera_setup_1
-from src.config.base_cfg import get_cfg_defaults
+from src.node_config.base_cfg import get_cfg_defaults
 from src.network.core.utils.torch_util import set_random_seed
 from src.plane_3d import Plane3D
 from src.semantic_convex_hull import generate_convex_hull
