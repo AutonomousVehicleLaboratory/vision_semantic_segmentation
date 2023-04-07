@@ -16,7 +16,7 @@ import torch.nn.functional as F
 
 from loss import rmi_utils
 from config import cfg
-from apex import amp
+# from apex import amp
 
 _euler_num = 2.718281828        # euler number
 _pi = 3.14159265		# pi
@@ -72,11 +72,12 @@ class RMILoss(nn.Module):
         # torch.inverse aren't supported by half
         logits_4D.float()
         labels_4D.float()
-        if cfg.TRAIN.FP16:
-            with amp.disable_casts():
-                loss = self.forward_sigmoid(logits_4D, labels_4D, do_rmi=do_rmi)
-        else:
-            loss = self.forward_sigmoid(logits_4D, labels_4D, do_rmi=do_rmi)
+        # if cfg.TRAIN.FP16:
+        #     with amp.disable_casts():
+        #         loss = self.forward_sigmoid(logits_4D, labels_4D, do_rmi=do_rmi)
+        # else:
+        #     loss = self.forward_sigmoid(logits_4D, labels_4D, do_rmi=do_rmi)
+        loss = self.forward_sigmoid(logits_4D, labels_4D, do_rmi=do_rmi)
         return loss
 
     def forward_sigmoid(self, logits_4D, labels_4D, do_rmi=False):

@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from config import cfg
 
-from apex import amp
+# from apex import amp
 
 from runx.logx import logx
 
@@ -19,9 +19,7 @@ def Norm2d(in_channels, **kwargs):
     """
     Custom Norm Function to allow flexible switching
     """
-    print(cfg.MODEL)
     layer = getattr(cfg.MODEL, 'BNFUNC')
-    print(layer)
     normalization_layer = layer(in_channels, **kwargs)
     return normalization_layer
 
@@ -41,7 +39,7 @@ def initialize_weights(*models):
                 module.bias.data.zero_()
 
 
-@amp.float_function
+# @amp.float_function
 def Upsample(x, size):
     """
     Wrapper Around the Upsample Call
@@ -50,7 +48,7 @@ def Upsample(x, size):
                                      align_corners=align_corners)
 
 
-@amp.float_function
+# @amp.float_function
 def Upsample2(x):
     """
     Wrapper Around the Upsample Call
