@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """ Semantic Segmentation Ros Wrapper
 
 Author: Hengyuan Zhang
@@ -33,7 +33,8 @@ from src.config.base_cfg import get_cfg_defaults
 from src.network.core.utils.torch_util import set_random_seed
 from src.plane_3d import Plane3D
 from src.semantic_convex_hull import generate_convex_hull
-from src.semantic_segmentation import SemanticSegmentation  # source code
+# from src.semantic_segmentation import SemanticSegmentation  # source code
+from src.hrnet.hrnet_semantic_segmentation import HRNetSemanticSegmentation, get_custom_hrnet_args
 from src.vis import visualize_marker
 
 
@@ -58,7 +59,8 @@ class VisionSemanticSegmentationNode:
 
         # Load the configuration
         network_cfg = cfg.VISION_SEM_SEG.SEM_SEG_NETWORK
-        self.seg = SemanticSegmentation(network_cfg)
+        # self.seg = SemanticSegmentation(network_cfg)
+        self.seg = HRNetSemanticSegmentation(get_custom_hrnet_args())
         self.seg_color_fn = mapillary_visl.apply_color_map
         self.seg_color_ref = mapillary_visl.get_labels(network_cfg.DATASET_CONFIG)
 
