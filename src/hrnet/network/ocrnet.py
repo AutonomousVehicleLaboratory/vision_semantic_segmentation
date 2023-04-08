@@ -29,14 +29,14 @@ POSSIBILITY OF SUCH DAMAGE.
 """
 from torch import nn
 
-from network.mynn import initialize_weights, Upsample, scale_as
-from network.mynn import ResizeX
-from network.utils import get_trunk
-from network.utils import BNReLU, get_aspp
-from network.utils import make_attn_head
-from network.ocr_utils import SpatialGather_Module, SpatialOCR_Module
-from config import cfg
-from utils.misc import fmt_scale
+from hrnet.network.mynn import initialize_weights, Upsample, scale_as
+from hrnet.network.mynn import ResizeX
+from hrnet.network.utils import get_trunk
+from hrnet.network.utils import BNReLU, get_aspp
+from hrnet.network.utils import make_attn_head
+from hrnet.network.ocr_utils import SpatialGather_Module, SpatialOCR_Module
+from hrnet.config import cfg
+from hrnet.utils.misc import fmt_scale
 
 
 class OCR_block(nn.Module):

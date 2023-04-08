@@ -35,7 +35,7 @@
 
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
-import  network.mynn as mynn
+import hrnet.network.mynn as mynn
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']

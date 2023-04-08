@@ -38,7 +38,7 @@ from skimage.restoration import denoise_bilateral
 import torch
 from PIL import Image, ImageEnhance
 import torchvision.transforms as torch_tr
-from config import cfg
+from hrnet.config import cfg
 from scipy.ndimage.interpolation import shift
 
 from skimage.segmentation import find_boundaries

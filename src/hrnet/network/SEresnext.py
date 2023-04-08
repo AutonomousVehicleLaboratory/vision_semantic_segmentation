@@ -37,7 +37,7 @@ from collections import OrderedDict
 import math
 import torch.nn as nn
 from torch.utils import model_zoo
-import network.mynn as mynn
+import hrnet.network.mynn as mynn
 
 __all__ = ['SENet', 'se_resnext50_32x4d', 'se_resnext101_32x4d']
 

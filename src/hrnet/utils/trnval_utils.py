@@ -30,10 +30,10 @@ POSSIBILITY OF SUCH DAMAGE.
 import os
 import torch
 
-from config import cfg
-from utils.misc import fast_hist, fmt_scale
-from utils.misc import AverageMeter, eval_metrics
-from utils.misc import metrics_per_image
+from hrnet.config import cfg
+from hrnet.utils.misc import fast_hist, fmt_scale
+from hrnet.utils.misc import AverageMeter, eval_metrics
+from hrnet.utils.misc import metrics_per_image
 
 from runx.logx import logx
 

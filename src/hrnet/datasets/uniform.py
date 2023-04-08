@@ -49,7 +49,7 @@ from collections import defaultdict
 from scipy.ndimage.measurements import center_of_mass
 from PIL import Image
 from tqdm import tqdm
-from config import cfg
+from hrnet.config import cfg
 from runx.logx import logx
 
 pbar = None

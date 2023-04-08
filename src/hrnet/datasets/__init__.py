@@ -33,13 +33,13 @@ Dataset setup and loaders
 import importlib
 import torchvision.transforms as standard_transforms
 
-import transforms.joint_transforms as joint_transforms
-import transforms.transforms as extended_transforms
+import hrnet.transforms.joint_transforms as joint_transforms
+import hrnet.transforms.transforms as extended_transforms
 from torch.utils.data import DataLoader
 
-from config import cfg, update_dataset_cfg, update_dataset_inst
+from hrnet.config import cfg, update_dataset_cfg, update_dataset_inst
 from runx.logx import logx
-from datasets.randaugment import RandAugment
+from hrnet.datasets.randaugment import RandAugment
 
 
 def setup_loaders(args):
@@ -52,7 +52,7 @@ def setup_loaders(args):
     # TODO add error checking to make sure class exists
     print(f'dataset = {args.dataset}')
 
-    mod = importlib.import_module('datasets.{}'.format(args.dataset))
+    mod = importlib.import_module('hrnet.datasets.{}'.format(args.dataset))
     print("Mod:", mod)
     dataset_cls = getattr(mod, 'Loader')
     print("Dataset cls", dataset_cls)

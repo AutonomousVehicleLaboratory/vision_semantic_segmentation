@@ -34,15 +34,15 @@ import torch.nn.functional as F
 
 from torch import nn
 
-from network.mynn import Norm2d, Upsample
-from network.xception import xception71
-from network.wider_resnet import wrn38
-from network.SEresnext import se_resnext50_32x4d, se_resnext101_32x4d
-from network.Resnet import resnet50, resnet101
-import network.hrnetv2 as hrnetv2
+from hrnet.network.mynn import Norm2d, Upsample
+from hrnet.network.xception import xception71
+from hrnet.network.wider_resnet import wrn38
+from hrnet.network.SEresnext import se_resnext50_32x4d, se_resnext101_32x4d
+from hrnet.network.Resnet import resnet50, resnet101
+import hrnet.network.hrnetv2 as hrnetv2
 
 from runx.logx import logx
-from config import cfg
+from hrnet.config import cfg
 
 
 class get_resnet(nn.Module):

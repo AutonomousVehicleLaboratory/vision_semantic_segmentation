@@ -39,27 +39,27 @@ import time
 import torch
 
 from runx.logx import logx
-from config import assert_and_infer_cfg, update_epoch, cfg
-from utils.misc import AverageMeter, prep_experiment, eval_metrics
-from utils.misc import ImageDumper
-from utils.trnval_utils import eval_minibatch, validate_topn
-from loss.utils import get_loss
-from loss.optimizer import get_optimizer, restore_opt, restore_net
+from hrnet.config import assert_and_infer_cfg, update_epoch, cfg
+from hrnet.utils.misc import AverageMeter, prep_experiment, eval_metrics
+from hrnet.utils.misc import ImageDumper
+from hrnet.utils.trnval_utils import eval_minibatch, validate_topn
+from hrnet.loss.utils import get_loss
+from hrnet.loss.optimizer import get_optimizer, restore_opt, restore_net
 from PIL import Image
-from default_parser import args as def_args
+from hrnet.default_parser import args as def_args
 import numpy as np
 import torchvision.transforms as standard_transforms
 
-import datasets
-import network
+import hrnet.datasets as datasets
+import hrnet.network as network
 
 def get_custom_hrnet_args():
     def_args.num_workers=1
     def_args.dataset='mapillary'
     def_args.cv=0
     def_args.bs_val=1
-    def_args.eval='folder'
-    def_args.eval_folder='./imgs/test_imgs'
+    # def_args.eval='folder'
+    # def_args.eval_folder='./imgs/test_imgs'
     def_args.dump_assets=True
     def_args.dump_all_images=True
     def_args.n_scales="0.5,1.0,2.0"
@@ -88,8 +88,8 @@ class HRNetSemanticSegmentation():
         # Set up the Arguments, Tensorboard Writer, Dataloader, Loss Fn, Optimizer
         assert_and_infer_cfg(args)
 
-        train_loader, val_loader, train_obj = \
-            datasets.setup_loaders(args)
+        # train_loader, val_loader, train_obj = \
+        #     datasets.setup_loaders(args)
         criterion, criterion_val = get_loss(args)
 
         if args.snapshot:

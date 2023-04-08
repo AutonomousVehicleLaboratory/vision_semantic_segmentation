@@ -18,9 +18,9 @@ import torch.nn as nn
 import torch._utils
 import torch.nn.functional as F
 
-from network.mynn import Norm2d
+from hrnet.network.mynn import Norm2d
 from runx.logx import logx
-from config import cfg
+from hrnet.config import cfg
 
 
 BN_MOMENTUM = 0.1

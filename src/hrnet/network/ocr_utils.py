@@ -10,8 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from config import cfg
-from network.utils import BNReLU
+from hrnet.config import cfg
+from hrnet.network.utils import BNReLU
 
 
 class SpatialGather_Module(nn.Module):

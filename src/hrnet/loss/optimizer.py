@@ -36,8 +36,8 @@ import torch
 from torch import optim
 from runx.logx import logx
 
-from config import cfg
-from loss.radam import RAdam
+from hrnet.config import cfg
+from hrnet.loss.radam import RAdam
 
 
 def get_optimizer(args, net):

@@ -31,7 +31,7 @@ import numbers
 from PIL import Image, ImageOps
 import numpy as np
 import random
-from config import cfg
+from hrnet.config import cfg
 
 
 class Compose(object):

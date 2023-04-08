@@ -6,8 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from config import cfg
-from network.mynn import Norm2d
+from hrnet.config import cfg
+from hrnet.network.mynn import Norm2d
 # from apex.parallel import SyncBatchNorm
 from runx.logx import logx
 

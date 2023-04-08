@@ -36,10 +36,10 @@ import torch
 
 from PIL import Image
 from torch.utils import data
-from config import cfg
-from datasets import uniform
+from hrnet.config import cfg
+from hrnet.datasets import uniform
 from runx.logx import logx
-from utils.misc import tensor_to_pil
+from hrnet.utils.misc import tensor_to_pil
 
 
 class BaseLoader(data.Dataset):

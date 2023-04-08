@@ -14,8 +14,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from loss import rmi_utils
-from config import cfg
+from hrnet.loss import rmi_utils
+from hrnet.config import cfg
 # from apex import amp
 
 _euler_num = 2.718281828        # euler number

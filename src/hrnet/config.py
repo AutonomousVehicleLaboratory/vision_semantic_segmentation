@@ -39,8 +39,9 @@ from __future__ import unicode_literals
 import os
 import re
 import torch
+import rospy
 
-from utils.attr_dict import AttrDict
+from hrnet.utils.attr_dict import AttrDict
 
 
 __C = AttrDict()
@@ -48,7 +49,10 @@ cfg = __C
 __C.GLOBAL_RANK = 0
 __C.EPOCH = 0
 # Absolute path to a location to keep some large files, not in this dir.
-__C.ASSETS_PATH = './assets'
+
+# package_dir = rospy.get_param('~vision_semantic_segmentation_dir')
+package_dir = '/home/narayanan/noeticws/src/vision_semantic_segmentation'
+__C.ASSETS_PATH = os.path.join(package_dir, 'src/hrnet/assets')
 
 # Use class weighted loss per batch to increase loss for low pixel count classes per batch
 __C.BATCH_WEIGHTING = False

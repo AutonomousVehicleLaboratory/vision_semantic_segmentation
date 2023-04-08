@@ -6,14 +6,14 @@ import importlib
 import torch
 
 from runx.logx import logx
-from config import cfg
+from hrnet.config import cfg
 
 
 def get_net(args, criterion):
     """
     Get Network Architecture based on arguments provided
     """
-    net = get_model(network='network.' + args.arch,
+    net = get_model(network='hrnet.network.' + args.arch,
                     num_classes=cfg.DATASET.NUM_CLASSES,
                     criterion=criterion)
     num_params = sum([param.nelement() for param in net.parameters()])

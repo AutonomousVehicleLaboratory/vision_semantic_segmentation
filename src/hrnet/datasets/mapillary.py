@@ -33,11 +33,11 @@ Mapillary Dataset Loader
 import os
 import json
 
-from config import cfg
+from hrnet.config import cfg
 from runx.logx import logx
-from datasets.base_loader import BaseLoader
-from datasets.utils import make_dataset_folder
-from datasets import uniform
+from hrnet.datasets.base_loader import BaseLoader
+from hrnet.datasets.utils import make_dataset_folder
+from hrnet.datasets import uniform
 
 
 class Loader(BaseLoader):

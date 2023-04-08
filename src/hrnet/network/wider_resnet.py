@@ -38,8 +38,8 @@ from collections import OrderedDict
 from functools import partial
 import torch.nn as nn
 import torch
-import network.mynn as mynn
-from config import cfg
+import hrnet.network.mynn as mynn
+from hrnet.config import cfg
 
 
 def bnrelu(channels):
