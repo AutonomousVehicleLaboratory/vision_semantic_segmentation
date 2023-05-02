@@ -65,8 +65,8 @@ class ConfusionMatrix:
 
 if __name__ == '__main__':
     cfn_mtx = ConfusionMatrix(
-        "/home/qinru/avl/playground/vision_semantic_segmentation/external_data/confusion_matrix/run_trad_cnn/cfn_mtx.npy")
-
+        "/home/hzhang/data/resnext50_os8/cfn_mtx.npy"
+    )
     print(cfn_mtx)
     print(len(cfn_mtx))
 
