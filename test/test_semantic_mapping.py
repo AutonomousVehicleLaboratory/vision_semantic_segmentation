@@ -197,7 +197,7 @@ class Test:
             # img_name = "/home/henry/Pictures/disparity_map_vanilla_i_label_{}.png".format(i)
             # cv2.imwrite(img_name , cv2.cvtColor(bg[500::, 4000::].astype(np.uint8), cv2.COLOR_RGB2BGR))
         
-        exit(0)
+        # exit(0)
     
     def imshow(self, img1, img2):
         fig, axes = plt.subplots(1, 2)
@@ -220,10 +220,14 @@ def main():
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/distance_new/version_3/"
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/without_filter/version_2/"
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/points_raw/version_1/"
-    dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/alignment/version_10/"
+    # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/alignment/version_10/"
+    dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_75"
     # dir_path = "./global_maps"
     
-    test = Test(ground_truth_dir="./ground_truth")
+    # gt_dir = "./ground_truth"
+    ground_truth_dir = "/home/hzhang/data/semantic_mapping/groundtruth"
+    
+    test = Test(ground_truth_dir=ground_truth_dir)
     test.full_test(dir_path=dir_path, visualize=visualize, latex_mode=latex_mode, verbose=verbose)
 
 
