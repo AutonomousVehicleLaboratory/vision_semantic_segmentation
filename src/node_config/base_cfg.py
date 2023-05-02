@@ -37,9 +37,11 @@ _C.OUTPUT_DIR = "@/outputs"
 # 20 seconds.
 #_C.TEST_END_TIME = 1604445190 
 #_C.TEST_END_TIME = 1604445200 
-_C.TEST_END_TIME = 1604445459 
+# _C.TEST_END_TIME = 1604445459 
+# _C.TEST_END_TIME = 1581540870 # 30 second testing
+# _C.TEST_END_TIME = 1581541250 # half way testing
 #_C.TEST_END_TIME = 1581541450
-#_C.TEST_END_TIME = 1581541631
+_C.TEST_END_TIME = 1581541631
 #_C.TEST_END_TIME = 1602190420
 
 # Ground truth semantic map label directory
@@ -60,6 +62,21 @@ _C.LABEL_COLORS = [
     [107, 142, 35],  # vegetation
     [244, 35, 232],  # sidewalk
 ]
+# The color from source will be coverted to color in dest to merge labels of similar kind.
+_C.COLOR_REMAP_SOURCE = [
+    [200, 128, 128], # zebra line
+    [196, 196, 196], # curb
+    [128, 64, 255],  # bike lane
+    [170, 170, 170], # curb cut
+    [96, 96, 96],    # pedestrian walk
+]
+_C.COLOR_REMAP_DEST = [
+    [140, 140, 200], # crosswalk
+    [244, 35, 232],  # sidewalk
+    [140, 140, 200], # crosswalk
+    [244, 35, 232],  # sidewalk
+    [244, 35, 232],  # sidewalk
+]   
 
 # --------------------------------------------------------------------------- #
 # Mapping Configuration
@@ -67,14 +84,14 @@ _C.LABEL_COLORS = [
 _C.MAPPING = CN()
 
 # The resolution of the occupancy grid in meters
-_C.MAPPING.RESOLUTION = 0.2
+_C.MAPPING.RESOLUTION = 0.1
 # The boundary of the occupancy grid, in meters. The format of the boundary is [[xmin, xmax], [ymin, ymax]]
 # _C.MAPPING.BOUNDARY = [[100, 300], [800, 1000]]
 #_C.MAPPING.BOUNDARY = [[0, 1000], [0, 1400]]
 # mail-route map
-#_C.MAPPING.BOUNDARY = [[-1369, 149], [-563, 874]]
+_C.MAPPING.BOUNDARY = [[-1369, 149], [-563, 874]]
 # summer2020-map1
-_C.MAPPING.BOUNDARY = [[-637.05267334, 837.194641113], [-1365.04785156, 117.317863464]]
+# _C.MAPPING.BOUNDARY = [[-637.05267334, 837.194641113], [-1365.04785156, 117.317863464]]
 # summer2020-map2
 #_C.MAPPING.BOUNDARY = [[-267.616485596, 242.025421143], [-696.055175781, 126.109397888]]
 # summer2020-map3
@@ -82,8 +99,8 @@ _C.MAPPING.BOUNDARY = [[-637.05267334, 837.194641113], [-1365.04785156, 117.3178
 #_C.MAPPING.BOUNDARY = [[-119, 681], [-82, 393]]
 
 # Extend previous map (raw map in .npy format)
-#_C.MAPPING.PREV_MAP = ""
-_C.MAPPING.PREV_MAP = "/home/dfpazr/Documents/CogRob/avl/TritonNet/iros_psm_ws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_23/raw_map.npy"
+_C.MAPPING.PREV_MAP = ""
+# _C.MAPPING.PREV_MAP = "/home/dfpazr/Documents/CogRob/avl/TritonNet/iros_psm_ws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_23/raw_map.npy"
 
 #_C.MAPPING.BOUNDARY = [[0, 1400], [0, 1400]]
 # This variable defines the way how we estimate the depth from the image. If use "points_map", then we are using the
@@ -95,11 +112,13 @@ _C.MAPPING.DEPTH_METHOD = 'points_map'
 _C.MAPPING.PCD = CN()
 # If True, use the point cloud intensity data to augment our semantic BEV estimation
 _C.MAPPING.PCD.USE_INTENSITY = True
-_C.MAPPING.PCD.RANGE_MAX = 15.0
+# _C.MAPPING.PCD.RANGE_MAX = 15.0
+_C.MAPPING.PCD.RANGE_MAX = 20.0
 
 _C.MAPPING.CONFUSION_MTX = CN()
 # The load path of the confusion matrix
-_C.MAPPING.CONFUSION_MTX.LOAD_PATH = "/home/dfpazr/Documents/CogRob/avl/TritonNet/data/cfn_mtx.npy"
+_C.MAPPING.CONFUSION_MTX.LOAD_PATH = "/home/hzhang/data/resnext50_os8/cfn_mtx.npy"
+# _C.MAPPING.CONFUSION_MTX.LOAD_PATH = ""
 # The store and load path of deterministic input to the mapping process
 _C.MAPPING.INPUT_DIR = ""
 # If round to close or round down
@@ -117,7 +136,7 @@ _C.VISION_SEM_SEG.IMAGE_SCALE = 1.0
 # Semantic Segmentation Network Configuration
 # --------------------------------------------------------------------------- #
 network_cfg.TRAIN_DATASET = "Mapillary"
-network_cfg.DATASET_CONFIG = "/home/dfpazr/Documents/CogRob/avl/TritonNet/data/config.json"
+network_cfg.DATASET_CONFIG = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/config/config_65.json"
 
 network_cfg.MODEL.TYPE = "DeepLabv3+"
 # Path to Pre-trained or checkpointed weights
