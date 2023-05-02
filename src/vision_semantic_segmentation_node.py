@@ -47,8 +47,8 @@ class VisionSemanticSegmentationNode:
 
         # Set up ros message subscriber
         # Note that topics ".../image_raw" are created by the launch file
-        self.image_sub_cam1 = rospy.Subscriber("/camera1/image_raw", Image, self.image_callback)
-        self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.image_callback)
+        self.image_sub_cam1 = rospy.Subscriber("/camera1/image_raw", Image, self.image_callback, queue_size=1)
+        self.image_sub_cam6 = rospy.Subscriber("/camera6/image_raw", Image, self.image_callback, queue_size=1)
         self.plane_sub = rospy.Subscriber("/estimated_plane", Plane, self.plane_callback)
 
         # Set up ros message publisher
@@ -101,7 +101,7 @@ class VisionSemanticSegmentationNode:
 
         ## ========== semantic segmentation
         image_out_resized = self.seg.segmentation(image_in_resized)
-        image_out_resized = image_out_resized.astype(np.uint8)
+        image_out_resized = image_out_resized.astype(np.uint8).squeeze()
 
         ## ========== semantic extraction
         # self.generate_and_publish_convex_hull(image_out_resized, msg.header.frame_id, index_care_about=2) # cross walk
