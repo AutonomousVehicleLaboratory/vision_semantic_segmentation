@@ -62,7 +62,9 @@ def get_custom_hrnet_args():
     # def_args.eval_folder='./imgs/test_imgs'
     def_args.dump_assets=True
     def_args.dump_all_images=True
-    def_args.n_scales="0.5,1.0,2.0"
+    # def_args.n_scales="0.5,1.0,2.0"
+    def_args.n_scales="0.25,0.5,1.0"
+    # def_args.n_scales="1.0"
     def_args.snapshot="ASSETS_PATH/seg_weights/mapillary_ocrnet.HRNet_Mscale_fast-rattlesnake.pth"
     def_args.arch='ocrnet.HRNet_Mscale'
     def_args.result_dir='LOGDIR'
@@ -72,8 +74,8 @@ def get_custom_hrnet_args():
 def main():
     # Example usage
     HRNet = HRNetSemanticSegmentation(get_custom_hrnet_args())
-
-    img = Image.open("./imgs/test_imgs/scholars_far_resize.jpg").convert('RGB')
+    # img = Image.open("./imgs/test_imgs/scholars_far_resize.jpg").convert('RGB')
+    img = Image.open("/home/hzhang/data/hrnet/test.png").convert('RGB')
     img.load()
     img = np.asarray(img, dtype='uint8')
     print(HRNet.segmentation(img))

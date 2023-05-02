@@ -51,7 +51,7 @@ __C.EPOCH = 0
 # Absolute path to a location to keep some large files, not in this dir.
 
 # package_dir = rospy.get_param('~vision_semantic_segmentation_dir')
-package_dir = '/home/narayanan/noeticws/src/vision_semantic_segmentation'
+package_dir = '/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation'
 __C.ASSETS_PATH = os.path.join(package_dir, 'src/hrnet/assets')
 
 # Use class weighted loss per batch to increase loss for low pixel count classes per batch
@@ -99,7 +99,7 @@ __C.DATASET.CITYSCAPES_SPLITS = 3
 __C.DATASET.MEAN = [0.485, 0.456, 0.406]
 __C.DATASET.STD = [0.229, 0.224, 0.225]
 __C.DATASET.NAME = ''
-__C.DATASET.NUM_CLASSES = 0
+__C.DATASET.NUM_CLASSES = 65
 __C.DATASET.IGNORE_LABEL = 255
 __C.DATASET.DUMP_IMAGES = False
 __C.DATASET.CLASS_UNIFORM_PCT = 0.5

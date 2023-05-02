@@ -139,7 +139,7 @@ def eval_minibatch(data, net, criterion, val_loss, calc_metrics, args, val_idx):
                 #     'pred_*' - multi-scale predictions from mscale model
                 #     'attn_*' - multi-scale attentions from mscale model
                 output_dict = net(inputs)
-                print("Prediction output size: ", output_dict['pred'].shape)
+                # print("Prediction output size: ", output_dict['pred'].shape)
                 _pred = output_dict['pred']
 
                 # save AVGPOOL style multi-scale output for visualizing
