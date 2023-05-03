@@ -207,7 +207,7 @@ class Test:
 
 
 def main():
-    visualize = True # True if visualizing global maps and ground truth, default to no visualization
+    visualize = False # True if visualizing global maps and ground truth, default to no visualization
     latex_mode = True # True if generate latex code of tabels
     verbose = True # True if print evaluation results for every image False if print final average result
     import sys
@@ -220,10 +220,13 @@ def main():
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/distance_new/version_3/"
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/without_filter/version_2/"
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/points_raw/version_1/"
-    dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/alignment/version_10/"
+    # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/alignment/version_10/"
     # dir_path = "./global_maps"
+    dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_93"
+
+    ground_truth_dir = "/home/hzhang/data/semantic_mapping/groundtruth"
     
-    test = Test(ground_truth_dir="./ground_truth")
+    test = Test(ground_truth_dir=ground_truth_dir)
     test.full_test(dir_path=dir_path, visualize=visualize, latex_mode=latex_mode, verbose=verbose)
 
 
