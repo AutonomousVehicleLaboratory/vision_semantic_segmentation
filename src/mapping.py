@@ -173,8 +173,8 @@ class SemanticMapping:
 
     def set_velodyne_to_baselink(self):
         rospy.logwarn("velodyne to baselink from TF is tunned, current version fits best.")
-        #T = euler_matrix(0., 0.140, 0.)
-        T = euler_matrix(0., 0.10, 0.)
+        T = euler_matrix(0., 0.140, 0.)
+        # T = euler_matrix(0., 0.10, 0.)
         t = np.array([[2.64, 0, 1.98]]).T
         T[0:3, -1::] = t
         return T
@@ -184,7 +184,8 @@ class SemanticMapping:
         rospy.logwarn("pcd data frame_id %s", msg.header.frame_id)
         rospy.logdebug("pcd data received")
         rospy.logdebug("pcd size: %d, %d", msg.height, msg.width)
-        rospy.logwarn("pcd queue size: %d", len(self.pcd_queue))
+        if len(self.pcd_queue) > 10:
+            rospy.logwarn("pcd queue size: %d", len(self.pcd_queue))
         pcd = np.empty((4, msg.width))
         for i, el in enumerate(pc2.read_points(msg, field_names=("x", "y", "z", "intensity"), skip_nans=True)):
             pcd[:, i] = el
@@ -231,8 +232,6 @@ class SemanticMapping:
     def pose_callback(self, msg):
         rospy.logdebug("Getting pose at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
         self.pose_queue.append(msg)
-        if msg.header.stamp.secs >= self.test_cut_time:
-            self.save_map_to_file = True
         rospy.logdebug("Pose queue length: %d", len(self.pose_queue))
 
     def set_global_map_pose(self):
@@ -278,6 +277,12 @@ class SemanticMapping:
         invoked and generate a BEV semantic map from the image.
         """
         self.logger.log("Mapping image at: {}.{:.9f}s".format(msg.header.stamp.secs, msg.header.stamp.nsecs))
+        if msg.header.stamp.secs >= self.test_cut_time:
+            self.save_map_to_file = True
+        else:
+            rospy.loginfo('{} seconds to end time.'.format(int(self.test_cut_time - msg.header.stamp.secs)))
+        self.logger.log("Mapping {} image at: {}s".format(msg.header.frame_id, msg.header.stamp.to_sec()))
+        
         try:
             image_in = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         except CvBridgeError as e:
@@ -320,11 +325,11 @@ class SemanticMapping:
             # self.unique_input_dict["camera_calibration"] = camera_calibration
 
         if self.depth_method in ['points_map', 'points_raw']:
-            frame_input_dict = {"pcd": np.array(self.pcd),
-                                "pcd_frame_id": self.pcd_frame_id,
-                                "semantic_image": np.array(semantic_image),
-                                "pose": pose}
-            self.input_list.append(frame_input_dict)
+            # frame_input_dict = {"pcd": np.array(self.pcd),
+            #                     "pcd_frame_id": self.pcd_frame_id,
+            #                     "semantic_image": np.array(semantic_image),
+            #                     "pose": pose}
+            # self.input_list.append(frame_input_dict)
             pcd_in_range, pcd_label = self.project_pcd(self.pcd, self.pcd_frame_id, semantic_image, pose,
                                                        camera_calibration)
             pcd_pub = create_point_cloud(pcd_in_range[0:3].T, pcd_label.T, frame_id=self.pcd_frame_id)
@@ -342,14 +347,14 @@ class SemanticMapping:
             makedirs(output_dir, exist_ok=True)
             # np.save(osp.join(output_dir, "map.npy"), self.map)
 
-            np.save(osp.join(output_dir, "raw_map.npy"), self.map)
+            # np.save(osp.join(output_dir, "raw_map.npy"), self.map)
 
             self.map = apply_filter(self.map)  # smooth the labels to fill black holes
             color_map = render_bev_map(self.map, self.label_colors)
             # color_map = render_bev_map_with_thresholds(self.map, self.label_colors, priority=[3, 4, 0, 2, 1],
             #                                            thresholds=[0.1, 0.1, 0.5, 0.20, 0.05])
 
-            output_file = osp.join(output_dir, "global_map.png")
+            output_file = osp.join(output_dir, "global_map_deeplab.png")
             print("Saving image to: ", output_file)
             cv2.imwrite(output_file, color_map)
 
