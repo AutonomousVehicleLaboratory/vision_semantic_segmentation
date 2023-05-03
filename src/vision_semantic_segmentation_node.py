@@ -70,6 +70,7 @@ class VisionSemanticSegmentationNode:
         self.hull_id = 0
         self.image_scale = cfg.VISION_SEM_SEG.IMAGE_SCALE  # Resize the image to reduce the memory overhead, in percentage.
         self.bridge = CvBridge()
+        print("Initialization Done.")
 
     def image_callback(self, msg):
         rospy.logdebug("Segmented image at: %d.%09ds", msg.header.stamp.secs, msg.header.stamp.nsecs)
