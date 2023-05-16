@@ -17,6 +17,21 @@ def convert_labels(gmap, mask=None):
     global_map[np.logical_and(np.all(gmap == np.array([107, 142, 35]), axis=-1), mask)] = 5  # vegetation
     return global_map
 
+label_color_dict = {
+    1:np.array([128, 64, 128]),
+    2:np.array([140, 140, 200]),
+    3:np.array([255, 255, 255]),
+    4:np.array([244, 35, 232]),
+    5:np.array([107, 142, 35]),
+}
+
+
+def color_labels(gmap, mask=None):
+    """ covert labels to colors """
+    global_map = np.zeros((gmap.shape[0], gmap.shape[1], 3))
+    for label in label_color_dict:
+        global_map[gmap == label] = label_color_dict[label]
+    return global_map
 
 def read_img(global_map_path, mask=None):
     """ read the global map file and covert colors to labels """
@@ -191,11 +206,18 @@ class Test:
             bg[fn] = np.array([0, 0, 255])
 
             plt.figure()
-            plt.imshow(bg[500::, 4000::])# [805:885, 5350:5700])
+            # plt.imshow(bg[500::, 4000::])# [805:885, 5350:5700])
+            # plt.imshow(bg[805:885, 5350:5700])
+            plt.imshow(bg[805:870, 4850:5200])
             plt.show()
 
-            # img_name = "/home/henry/Pictures/disparity_map_vanilla_i_label_{}.png".format(i)
-            # cv2.imwrite(img_name , cv2.cvtColor(bg[500::, 4000::].astype(np.uint8), cv2.COLOR_RGB2BGR))
+            img_name = "/home/hzhang/Pictures/sensors/disparity_map_vanilla_i_label_{}.png".format(i)
+            img_name = "/home/hzhang/Pictures/sensors/disparity_{}.png".format(i)
+            cv2.imwrite(img_name, cv2.cvtColor(bg[805:870, 4850:5200].astype(np.uint8), cv2.COLOR_RGB2BGR))
+            img_name = "/home/hzhang/Pictures/sensors/prediction_{}.png".format(i)
+            cv2.imwrite(img_name, color_labels(generate_map[805:870, 4850:5200]).astype(np.uint8))
+            img_name = "/home/hzhang/Pictures/sensors/groundtruth_{}.png".format(i)
+            cv2.imwrite(img_name, color_labels(gmap[805:870, 4850:5200]).astype(np.uint8))
         
         # exit(0)
     
@@ -222,10 +244,13 @@ def main():
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/points_raw/version_1/"
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/alignment/version_10/"
     # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_75"
-    dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/hrnet_label_mapping/version_11"
+    # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/hrnet_label_mapping/version_11"
     # dir_path = "./global_maps"
-    
-    # gt_dir = "./ground_truth"
+    # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_93"
+    # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/hrnet_label_mapping/version_10"
+    # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/deeplabv3plus_results/version_2"
+    dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/deeplabv3plus_results/version_4"
+
     ground_truth_dir = "/home/hzhang/data/semantic_mapping/groundtruth"
     
     test = Test(ground_truth_dir=ground_truth_dir)
