@@ -138,7 +138,9 @@ class SemanticMapping:
         # load confusion matrix, we may take log probability instead
         if cfg.MAPPING.CONFUSION_MTX.LOAD_PATH != "":
             confusion_matrix = ConfusionMatrix(load_path=cfg.MAPPING.CONFUSION_MTX.LOAD_PATH)
+            confusion_matrix.merge_labels(cfg.SRC_INDICES, cfg.DST_INDICES)
             self.confusion_matrix = confusion_matrix.get_submatrix(cfg.LABELS, to_probability=True, use_log=True)
+            # print('confusion_matrix:', self.confusion_matrix)
         else:
             # Use Identity confusion matrix
             self.confusion_matrix = np.eye(len(self.label_names))

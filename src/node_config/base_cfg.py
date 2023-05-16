@@ -27,7 +27,7 @@ def get_cfg_defaults():
 # --------------------------------------------------------------------------- #
 # We will create a sub-folder with this name in the output directory
 # _C.TASK_NAME = "vanilla_confusion_matrix"
-_C.TASK_NAME = "cfn_mtx_with_intensity"
+_C.TASK_NAME = "hrnet_label_mapping"
 
 # '@' here means the root directory of the project
 _C.OUTPUT_DIR = "@/outputs"
@@ -40,8 +40,8 @@ _C.OUTPUT_DIR = "@/outputs"
 # _C.TEST_END_TIME = 1604445459 
 # _C.TEST_END_TIME = 1581540870 # 30 second testing
 # _C.TEST_END_TIME = 1581541250 # half way testing
-#_C.TEST_END_TIME = 1581541450
-_C.TEST_END_TIME = 1581541631
+_C.TEST_END_TIME = 1581541450
+# _C.TEST_END_TIME = 1581541631
 #_C.TEST_END_TIME = 1602190420
 
 # Ground truth semantic map label directory
@@ -51,7 +51,10 @@ _C.GROUND_TRUTH_DIR = ""
 _C.RNG_SEED = -1
 
 # The associate index of each label in the semantic segmentation network
-_C.LABELS = [2, 1, 8, 10, 3]
+# _C.LABELS = [2, 1, 8, 10, 3]
+_C.LABELS = [13, 8, 24, 30, 15 ]
+_C.SRC_INDICES = [23, 7]
+_C.DST_INDICES = [8, 13]
 # The name of the label
 _C.LABELS_NAMES = ["road", "crosswalk", "lane", "vegetation", "sidewalk"]
 # The RGB color of each label. We will use this to identify the label of each RGB pixel
@@ -65,17 +68,17 @@ _C.LABEL_COLORS = [
 # The color from source will be coverted to color in dest to merge labels of similar kind.
 _C.COLOR_REMAP_SOURCE = [
     [200, 128, 128], # zebra line
-    [196, 196, 196], # curb
+    # [196, 196, 196], # curb
     [128, 64, 255],  # bike lane
-    [170, 170, 170], # curb cut
-    [96, 96, 96],    # pedestrian walk
+    # [170, 170, 170], # curb cut
+    # [96, 96, 96],    # pedestrian walk
 ]
 _C.COLOR_REMAP_DEST = [
     [140, 140, 200], # crosswalk
-    [244, 35, 232],  # sidewalk
-    [140, 140, 200], # crosswalk
-    [244, 35, 232],  # sidewalk
-    [244, 35, 232],  # sidewalk
+    # [244, 35, 232],  # sidewalk
+    [128, 64, 128], # road
+    # [244, 35, 232],  # sidewalk
+    # [244, 35, 232],  # sidewalk
 ]   
 
 # --------------------------------------------------------------------------- #
@@ -84,7 +87,7 @@ _C.COLOR_REMAP_DEST = [
 _C.MAPPING = CN()
 
 # The resolution of the occupancy grid in meters
-_C.MAPPING.RESOLUTION = 0.1
+_C.MAPPING.RESOLUTION = 0.2
 # The boundary of the occupancy grid, in meters. The format of the boundary is [[xmin, xmax], [ymin, ymax]]
 # _C.MAPPING.BOUNDARY = [[100, 300], [800, 1000]]
 #_C.MAPPING.BOUNDARY = [[0, 1000], [0, 1400]]
@@ -112,12 +115,12 @@ _C.MAPPING.DEPTH_METHOD = 'points_map'
 _C.MAPPING.PCD = CN()
 # If True, use the point cloud intensity data to augment our semantic BEV estimation
 _C.MAPPING.PCD.USE_INTENSITY = True
-# _C.MAPPING.PCD.RANGE_MAX = 15.0
-_C.MAPPING.PCD.RANGE_MAX = 20.0
+# _C.MAPPING.PCD.RANGE_MAX = 30.0
+_C.MAPPING.PCD.RANGE_MAX = 10.0
 
 _C.MAPPING.CONFUSION_MTX = CN()
 # The load path of the confusion matrix
-_C.MAPPING.CONFUSION_MTX.LOAD_PATH = "/home/hzhang/data/resnext50_os8/cfn_mtx.npy"
+_C.MAPPING.CONFUSION_MTX.LOAD_PATH = "/home/hzhang/data/hrnet/hrnet_cfn_1999.npy"
 # _C.MAPPING.CONFUSION_MTX.LOAD_PATH = ""
 # The store and load path of deterministic input to the mapping process
 _C.MAPPING.INPUT_DIR = ""
