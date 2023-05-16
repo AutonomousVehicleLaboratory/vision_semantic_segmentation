@@ -27,7 +27,7 @@ def get_cfg_defaults():
 # --------------------------------------------------------------------------- #
 # We will create a sub-folder with this name in the output directory
 # _C.TASK_NAME = "vanilla_confusion_matrix"
-_C.TASK_NAME = "cfn_mtx_with_intensity"
+_C.TASK_NAME = "deeplabv3plus_results"
 
 # '@' here means the root directory of the project
 _C.OUTPUT_DIR = "@/outputs"
@@ -101,6 +101,7 @@ _C.MAPPING.PCD.RANGE_MAX = 10.0
 
 _C.MAPPING.CONFUSION_MTX = CN()
 # The load path of the confusion matrix
+# _C.MAPPING.CONFUSION_MTX.LOAD_PATH =""
 _C.MAPPING.CONFUSION_MTX.LOAD_PATH = "/home/hzhang/data/resnext50_os8/cfn_mtx.npy"
 # The store and load path of deterministic input to the mapping process
 _C.MAPPING.INPUT_DIR = ""
