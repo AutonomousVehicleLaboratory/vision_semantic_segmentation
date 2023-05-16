@@ -96,7 +96,7 @@ class Test:
         acc_array = []
         miss_array = []
         for path in path_lists:
-            print("You are testing\t" + path.split("/")[-1])
+            print("You are testing\t" + path)
             _, generate_map = read_img(path, self.mask)
             gmap = self.ground_truth_mask[self.shift_w:generate_map.shape[0] + self.shift_w,
                    self.shift_h:generate_map.shape[1] + self.shift_h]
@@ -207,7 +207,7 @@ class Test:
 
 
 def main():
-    visualize = True # True if visualizing global maps and ground truth, default to no visualization
+    visualize = False # True if visualizing global maps and ground truth, default to no visualization
     latex_mode = True # True if generate latex code of tabels
     verbose = True # True if print evaluation results for every image False if print final average result
     import sys
@@ -221,7 +221,8 @@ def main():
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/without_filter/version_2/"
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/points_raw/version_1/"
     # dir_path = "/home/henry/Documents/projects/pylidarmot/src/vision_semantic_segmentation/outputs/alignment/version_10/"
-    dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_75"
+    # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_75"
+    dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/hrnet_label_mapping/version_11"
     # dir_path = "./global_maps"
     
     # gt_dir = "./ground_truth"
