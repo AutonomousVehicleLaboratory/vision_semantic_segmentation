@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import os
 import matplotlib.pyplot as plt
+import math
 
 def convert_labels(gmap, mask=None):
     """ covert colors to labels """
@@ -115,7 +116,9 @@ class Test:
             _, generate_map = read_img(path, self.mask)
             gmap = self.ground_truth_mask[self.shift_w:generate_map.shape[0] + self.shift_w,
                    self.shift_h:generate_map.shape[1] + self.shift_h]
-            iou_lists, acc_lists, miss = self.iou_expand(gmap, generate_map, latex_mode=latex_mode, verbose=verbose)
+            # iou_lists, acc_lists, miss = self.iou(gmap, generate_map, latex_mode=latex_mode, verbose=verbose)
+            # iou_lists, acc_lists, miss = self.iou_expand(gmap, generate_map, latex_mode=latex_mode, verbose=verbose)
+            iou_lists, acc_lists, miss = self.iou_shift_map(gmap, generate_map, 1, 25, latex_mode=latex_mode, verbose=verbose)
             iou_array.append(np.array(iou_lists).reshape(1, -1))
             acc_array.append(np.array(acc_lists).reshape(1, -1))
             miss_array.append(miss)
@@ -196,8 +199,17 @@ class Test:
         fp = float(np.sum(np.logical_and(map_layer, np.logical_not(gmap_layer))))
         fn = float(np.sum(np.logical_and(np.logical_not(map_layer), gmap_layer)))
         union = float(np.sum(gmap_layer) + np.sum(map_layer) - intersection)
-        precision = tp / (tp + fp)
-        recall = tp / (tp + fn)
+
+        if tp + fp == 0:
+            precision = None
+        else:
+            precision = tp / (tp + fp)
+        
+        if tp + fn == 0:
+            recall = None
+        else:
+            recall = tp / (tp + fn)
+        
         iou = intersection / union
         return tp, fp, fn, precision, recall, intersection, union, iou
     
@@ -268,6 +280,124 @@ class Test:
                     precision_lists[2], recall_lists[2], iou_lists[2]
                 ))
         return iou_lists, acc_lists, miss
+    
+    def iou_shift_map(self, gmap, generate_map, shift_amount, region_count, latex_mode=False, verbose=False):
+        """
+            Calculate precision, recall, accuracy, mIoU allowing for regional
+            shiftig, optimized for best IoU
+            
+            gmap: ground truth map with interger labels
+            generate_map: generated map with interger labels
+            shift_amount: maximum pixels to shift by
+            region_count: grid count width by height
+        """
+        iou_lists = []
+        acc_lists = []
+        precision_lists = []
+        recall_lists = []
+        
+        # Pad ground truth by shift amount
+        
+        gmap_padded = np.pad(gmap, ((shift_amount,shift_amount),(shift_amount,shift_amount)), 'constant')
+        
+        for idx, cls in enumerate(self.class_lists):
+            gmap_layer = gmap_padded == cls         # Array of where ground truth is equal to the class
+            map_layer = generate_map == cls  # Array of where generated map is equal to the class
+            
+            # Shift array to check by
+            range_values = np.arange(-shift_amount, shift_amount+1)
+            x_shift, y_shift = np.meshgrid(range_values, range_values)
+            shifts_array = np.column_stack((x_shift.ravel(), y_shift.ravel()))
+
+            # Get chunk size
+            region_size_x = math.ceil(generate_map.shape[0] / region_count)
+            region_size_y = math.ceil(generate_map.shape[1] / region_count)
+
+            tp, fp, fn = 0, 0, 0
+
+            # Iterate over regions
+            for region_i in range(region_count):
+                for region_j in range(region_count):
+
+                    # Get region bounds
+                    pred_lower_x = region_i * region_size_x
+                    pred_upper_x = min(generate_map.shape[0], (region_i + 1) * region_size_x) # Clip to map size
+                    pred_lower_y = region_j * region_size_y
+                    pred_upper_y = min(generate_map.shape[1], (region_j + 1) * region_size_y) # Clip to map size
+
+                    # Temp values to hold best
+                    tp_reg, fp_reg, fn_reg = 0, 0, 0
+                    iou_best = 0
+
+                    # Go over every shift
+                    for shift_pair in shifts_array:
+                        # print("gmap bounds x", pred_lower_x + shift_amount + shift_pair[0], pred_upper_x + shift_amount + shift_pair[0])
+                        # print("gmap bounds y", pred_lower_y + shift_amount + shift_pair[1], pred_upper_y + shift_amount + shift_pair[1])
+                        # print("pred bounds x", pred_lower_x, pred_upper_x)
+                        # print("pred bounds y", pred_lower_y, pred_upper_y)
+                        gmap_layer_region = gmap_layer[
+                            (pred_lower_x + shift_amount + shift_pair[0]):(pred_upper_x + shift_amount + shift_pair[0]),
+                            (pred_lower_y + shift_amount + shift_pair[1]):(pred_upper_y + shift_amount + shift_pair[1])
+                        ]
+                        pred_layer_region = map_layer[
+                            pred_lower_x:pred_upper_x, 
+                            pred_lower_y:pred_upper_y
+                        ]
+                        if (np.sum(gmap_layer_region) + np.sum(pred_layer_region) != 0):
+                            # print("gmap, pred sum: ", np.sum(gmap_layer_region), np.sum(pred_layer_region))
+                            tp_reg_shift, fp_reg_shift, fn_reg_shift, precision, recall, intersection, union, iou = self.compute_iou(gmap_layer_region, pred_layer_region)
+
+                            # Replace previous if better
+                            if iou > iou_best:
+                                iou_best = iou
+                                tp_reg = tp_reg_shift
+                                fp_reg = fp_reg_shift
+                                fn_reg = fn_reg_shift
+                            
+                    
+                    # Add best values to tp, fp, and fn
+                    tp += tp_reg
+                    fp += fp_reg
+                    fn += fn_reg
+            # print(tp, fp, fn)
+            union = tp + fp + fn
+            intersection = tp
+
+            iou = intersection / union
+            precision = tp / (tp + fp)
+            recall = tp / (tp + fn)
+
+            iou_lists.append(round(iou,3))
+            acc_lists.append(round(recall,3))
+            precision_lists.append(round(precision,3))
+            recall_lists.append(round(recall,3))
+            
+        miss = 1 - np.sum(np.logical_and((gmap > 0), (generate_map > 0))) / float(np.sum(gmap > 0))
+        accuracy = np.sum((gmap == generate_map)[gmap > 0]) / float(np.sum(gmap > 0))
+        if verbose:
+            if not latex_mode:
+                self.log("IOU for {}: {}\t{}: {}\t{}:{}\tmIOU: {}".format(self.d[0], iou_lists[0], self.d[1],
+                                                                       iou_lists[1],
+                                                                       self.d[2], iou_lists[2],
+                                                                       np.mean(iou_lists)))
+                self.log("Accuracy for {}: {}\t{}: {}\t{}:{}\tmean Accuracy: {}".format(self.d[0], acc_lists[0],
+                                                                                     self.d[1], acc_lists[1],
+                                                                                     self.d[2],
+                                                                                     acc_lists[2],
+                                                                                     accuracy))
+                self.log("Overall Missing rate: {}".format(miss))
+            else:
+                miss_percent = miss * 100
+                # print(f"&{iou_lists[0]:.3f}&{iou_lists[1]:.3f}&{iou_lists[2]:.3f}&{np.mean(iou_lists):.3f}&{miss_percent:.3g}\\\\ \\hline")
+                # print("&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3g}\\\\ \\hline".format(iou_lists[0], iou_lists[1], iou_lists[2], np.mean(iou_lists),
+            # acc_lists[0], acc_lists[1], acc_lists[2], np.mean(acc_lists), miss_percent))
+                print("&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}&{:.3f}\\\\".format(
+                    precision_lists[0], recall_lists[0], iou_lists[0],
+                    precision_lists[1], recall_lists[1], iou_lists[1],
+                    precision_lists[2], recall_lists[2], iou_lists[2]
+                ))
+        return iou_lists, acc_lists, miss
+
 
     def disparity(self, gmap, generate_map):
         """ generate disparity map for the specified channels """
@@ -290,12 +420,12 @@ class Test:
             plt.imshow(bg[805:870, 4850:5200])
             plt.show()
 
-            img_name = "/home/hzhang/Pictures/sensors/disparity_map_vanilla_i_label_{}.png".format(i)
-            img_name = "/home/hzhang/Pictures/sensors/disparity_{}.png".format(i)
+            img_name = "/home/shanky/Documents/evaluation/out/disparity_map_vanilla_i_label_{}.png".format(i)
+            img_name = "/home/shanky/Documents/evaluation/out/disparity_{}.png".format(i)
             cv2.imwrite(img_name, cv2.cvtColor(bg[805:870, 4850:5200].astype(np.uint8), cv2.COLOR_RGB2BGR))
-            img_name = "/home/hzhang/Pictures/sensors/prediction_{}.png".format(i)
+            img_name = "/home/shanky/Documents/evaluation/out/prediction_{}.png".format(i)
             cv2.imwrite(img_name, color_labels(generate_map[805:870, 4850:5200]).astype(np.uint8))
-            img_name = "/home/hzhang/Pictures/sensors/groundtruth_{}.png".format(i)
+            img_name = "/home/shanky/Documents/evaluation/out/groundtruth_{}.png".format(i)
             cv2.imwrite(img_name, color_labels(gmap[805:870, 4850:5200]).astype(np.uint8))
         
         # exit(0)
@@ -309,7 +439,7 @@ class Test:
 
 def main():
     visualize = False # True if visualizing global maps and ground truth, default to no visualization
-    latex_mode = True # True if generate latex code of tabels
+    latex_mode = False # True if generate latex code of tabels
     verbose = True # True if print evaluation results for every image False if print final average result
     import sys
 
@@ -328,9 +458,10 @@ def main():
     # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/cfn_mtx_with_intensity/version_93"
     # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/hrnet_label_mapping/version_10"
     # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/deeplabv3plus_results/version_2"
-    dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/results"
+    # dir_path = "/home/hzhang/Documents/projects/noeticws/src/vision_semantic_segmentation/outputs/deeplabv3plus_results/version_4"
+    dir_path = "/home/shanky/Documents/evaluation/maps"
 
-    ground_truth_dir = "/home/hzhang/data/semantic_mapping/groundtruth"
+    ground_truth_dir = "/home/shanky/Documents/evaluation/truth"
     
     test = Test(ground_truth_dir=ground_truth_dir)
     test.full_test(dir_path=dir_path, visualize=visualize, latex_mode=latex_mode, verbose=verbose)
@@ -338,8 +469,8 @@ def main():
 
 def disparity_of_disparity():
     for i in [1,2,3]:
-        vanilla_name = "/home/henry/Pictures/IROS/disparity_map_vanilla_i_label_{}.png".format(i)
-        cfn_name = "/home/henry/Pictures/IROS/disparity_map_cfn_i_label_{}.png".format(i)
+        vanilla_name = "/home/shanky/Documents/evaluation/out/disparity_map_vanilla_i_label_{}.png".format(i)
+        cfn_name = "/home/shanky/Documents/evaluation/out/disparity_map_cfn_i_label_{}.png".format(i)
 
         vanilla_img = cv2.cvtColor( cv2.imread(vanilla_name), cv2.COLOR_BGR2RGB)
         cfn_img = cv2.cvtColor( cv2.imread(cfn_name), cv2.COLOR_BGR2RGB)
@@ -350,7 +481,7 @@ def disparity_of_disparity():
             mask_j = vanilla_img[:,:,j] != cfn_img[:,:,j]
             bg_layer[mask_j] = 255
             
-            img_name = "/home/henry/Pictures/IROS/disparity_of_disparity_map_{}_{}.png".format(i, j)
+            img_name = "/home/shanky/Documents/evaluation/out/disparity_of_disparity_map_{}_{}.png".format(i, j)
             cv2.imwrite(img_name , cv2.cvtColor(bg.astype(np.uint8), cv2.COLOR_RGB2BGR))
 
         # plt.figure()
