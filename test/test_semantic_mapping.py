@@ -118,7 +118,7 @@ class Test:
                    self.shift_h:generate_map.shape[1] + self.shift_h]
             # iou_lists, acc_lists, miss = self.iou(gmap, generate_map, latex_mode=latex_mode, verbose=verbose)
             # iou_lists, acc_lists, miss = self.iou_expand(gmap, generate_map, latex_mode=latex_mode, verbose=verbose)
-            iou_lists, acc_lists, miss = self.iou_shift_map(gmap, generate_map, 1, 25, latex_mode=latex_mode, verbose=verbose)
+            iou_lists, acc_lists, miss = self.iou_shift_map(gmap, generate_map, 2, 40, latex_mode=latex_mode, verbose=verbose)
             iou_array.append(np.array(iou_lists).reshape(1, -1))
             acc_array.append(np.array(acc_lists).reshape(1, -1))
             miss_array.append(miss)
@@ -398,6 +398,32 @@ class Test:
                 ))
         return iou_lists, acc_lists, miss
 
+    def side_by_side(self, regions, dir_path="./global_maps", ground_truth_enabled=True):
+        file_lists = os.listdir(dir_path)
+        file_lists = sorted([x for x in file_lists if ".png" in x])
+        path_lists = [os.path.join(dir_path, x) for x in file_lists]
+
+        # Iterate over all maps in the folder
+        for idx, path in enumerate(path_lists):
+            print("Getting Snippets from\t" + path)
+            _, generate_map = read_img(path, self.mask)
+
+            # Grab all snippets
+            for idx, region_coords in enumerate(regions):
+                img_name = "/home/shanky/Documents/evaluation/out/{}_{}_{}_{}_{}_{}.png".format(
+                    idx, os.path.splitext(os.path.basename(path))[0], region_coords[0], region_coords[1], region_coords[2], region_coords[3])
+                res = cv2.imwrite(img_name, color_labels(generate_map[region_coords[0]:region_coords[1],region_coords[2]:region_coords[3]]).astype(np.uint8))
+
+        # Get snippets from ground truth if enabled
+        if ground_truth_enabled:
+            gmap = self.ground_truth_mask[self.shift_w:generate_map.shape[0] + self.shift_w,
+                   self.shift_h:generate_map.shape[1] + self.shift_h]
+            
+            for idx, region_coords in enumerate(regions):
+                img_name = "/home/shanky/Documents/evaluation/out/{}_{}_{}_{}_{}_{}.png".format(
+                    idx, "gt", region_coords[0], region_coords[1], region_coords[2], region_coords[3])
+                res = cv2.imwrite(img_name, color_labels(gmap[region_coords[0]:region_coords[1],region_coords[2]:region_coords[3]]).astype(np.uint8))
+            
 
     def disparity(self, gmap, generate_map):
         """ generate disparity map for the specified channels """
@@ -464,7 +490,11 @@ def main():
     ground_truth_dir = "/home/shanky/Documents/evaluation/truth"
     
     test = Test(ground_truth_dir=ground_truth_dir)
-    test.full_test(dir_path=dir_path, visualize=visualize, latex_mode=latex_mode, verbose=verbose)
+    # test.full_test(dir_path=dir_path, visualize=visualize, latex_mode=latex_mode, verbose=verbose)
+    test.side_by_side([
+        [805, 870, 4850, 5200],
+        [950, 1250, 6200, 6700]
+    ], dir_path=dir_path)
 
 
 def disparity_of_disparity():
